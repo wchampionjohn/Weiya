@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:guides.rubyonrails.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:railsdrop.com)",
+      "Bash(bundle install:*)",
+      "Bash(bundle exec vite install:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm install:*)",
+      "Bash(rails generate:*)",
+      "Bash(rails db:create:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
