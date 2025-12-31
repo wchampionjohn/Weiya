@@ -1,0 +1,275 @@
+openapi: 3.0.3
+info:
+  title: 抽獎活動系統 - Public API
+  version: 1.0.0
+  description: 前台公開 API
+
+servers:
+  - url: /api/v1/public
+    description: Public API
+
+components:
+  schemas:
+    EventPublic:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        event_date:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [draft, active, completed]
+        has_password:
+          type: boolean
+          description: 是否需要密碼才能進入
+        prizes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrizePublic'
+
+    PrizePublic:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        prize_type:
+          type: string
+          enum: [cash, gift]
+        value:
+          type: number
+        quantity:
+          type: integer
+        drawn:
+          type: boolean
+        winners:
+          type: array
+          items:
+            $ref: '#/components/schemas/WinnerDisplay'
+        position:
+          type: integer
+
+    WinnerDisplay:
+      type: object
+      description: 依保密設定遮罩後的中獎者顯示資料
+      properties:
+        id:
+          type: integer
+        display:
+          type: object
+          description: 遮罩後的顯示欄位
+          properties:
+            name:
+              type: string
+              example: 陳○銘
+            phone:
+              type: string
+              example: 0912-XXX-678
+            email:
+              type: string
+              example: te***@example.com
+        drawn_at:
+          type: string
+          format: date-time
+
+    ParticipantSession:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        won:
+          type: boolean
+        prizes:
+          type: array
+          description: 該參與者中的獎項（完整資訊，未遮罩）
+          items:
+            type: object
+            properties:
+              prize_name:
+                type: string
+              prize_type:
+                type: string
+              value:
+                type: number
+              distributed:
+                type: boolean
+              drawn_at:
+                type: string
+                format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+paths:
+  /events/{id}:
+    get:
+      tags: [Events]
+      summary: 取得活動公開資訊
+      description: 若活動有設定密碼，需先通過密碼驗證
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 活動資訊
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventPublic'
+        '401':
+          description: 需要密碼驗證
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requires_password:
+                    type: boolean
+                    example: true
+        '404':
+          description: 活動不存在或未發布
+
+  /events/{id}/verify:
+    post:
+      tags: [Events]
+      summary: 驗證活動密碼
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 密碼正確
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                    example: true
+                  token:
+                    type: string
+                    description: 用於後續請求的 token
+        '401':
+          description: 密碼錯誤
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /events/{id}/winners:
+    get:
+      tags: [Winners]
+      summary: 取得中獎者列表（公開顯示）
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: prize_id
+          in: query
+          schema:
+            type: integer
+          description: 過濾特定獎項的中獎者
+      responses:
+        '200':
+          description: 中獎者列表（依保密設定遮罩）
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WinnerDisplay'
+
+  /events/{id}/login:
+    post:
+      tags: [Participants]
+      summary: 參與者登入查詢個人結果
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: 依活動 required_fields 提供對應欄位
+              properties:
+                employee_id:
+                  type: string
+                phone:
+                  type: string
+                email:
+                  type: string
+      responses:
+        '200':
+          description: 登入成功，回傳個人中獎資訊
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantSession'
+        '401':
+          description: 查無此參與者
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /events/{id}/status:
+    get:
+      tags: [Events]
+      summary: 取得活動即時狀態
+      description: 用於前台輪詢或 SSE，取得最新開獎狀態
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 活動狀態
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [waiting, drawing, announced, completed]
+                  current_prize:
+                    $ref: '#/components/schemas/PrizePublic'
+                  last_updated:
+                    type: string
+                    format: date-time
