@@ -1,50 +1,107 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+==================== 同步影響報告 ====================
+版本變更: 0.0.0 → 1.0.0 (MAJOR - 初始憲章)
+修改的原則: 無（新憲章）
+新增章節:
+  - 核心原則 (3): 簡單優先、測試驅動、程式碼品質
+  - 開發工作流程
+  - 技術標準
+  - 治理規範
+移除章節: 無
+需要更新的模板:
+  - .specify/templates/plan-template.md ✅ (相容)
+  - .specify/templates/spec-template.md ✅ (相容)
+  - .specify/templates/tasks-template.md ✅ (相容)
+待辦事項: 無
+============================================================
+-->
 
-## Core Principles
+# Weiya 專案憲章
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+## 核心原則
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### I. 簡單優先
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+所有解決方案必須是滿足需求的最簡單形式。
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+- **YAGNI 強制執行**：在實際需要之前不實作功能
+- **最小依賴**：只有在明確合理時才添加函式庫
+- **避免過早優化**：先分析效能瓶頸，再進行優化
+- **清晰優於巧妙**：可讀性優先於簡潔性
+- **直接解決方案**：避免不必要的抽象或間接層
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+**理由**：簡單的程式碼更容易測試、除錯、維護和擴展。複雜性會隨時間累積；簡單性能保持開發速度。
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+### II. 測試驅動開發
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+所有重要功能的實作必須由測試引導。
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+- **先寫測試**：在實作前定義預期行為
+- **紅-綠-重構**：驗證測試失敗 → 實作 → 重構
+- **覆蓋率要求**：關鍵路徑必須有測試覆蓋
+- **測試隔離**：每個測試必須獨立且可重複執行
+- **快速回饋**：測試套件必須能快速執行以支援頻繁測試
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+**理由**：TDD 產生更好設計的程式碼，及早發現回歸問題，並作為活文件。
 
-## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
+### III. 程式碼品質
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+所有程式碼必須遵循既定標準和最佳實踐。
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+- **Rails 慣例**：遵循 Rails 慣用法（肥 Model、瘦 Controller、Concerns）
+- **React 模式**：使用函數式元件、Hooks、適當的狀態管理
+- **一致的風格**：遵守 linting 規則（RuboCop、ESLint）
+- **有意義的命名**：變數、方法和檔案必須有描述性名稱
+- **DRY 原則**：只有在重複明確時才提取共用模式（三次原則）
+
+**理由**：高品質程式碼減少錯誤、降低新人入門門檻，並實現可持續的開發節奏。
+
+## 開發工作流程
+
+Weiya 專案的標準開發實踐。
+
+- **版本控制**：所有變更透過功能分支進行，提交訊息需具描述性
+- **Pull Request**：合併到主分支前必須建立 PR
+- **程式碼審查**：合併前至少需要一位團隊成員審查
+- **CI 驗證**：測試必須通過才允許合併
+- **文件更新**：當行為變更時需更新相關文件
+
+## 技術標準
+
+與專案技術棧一致的技術特定要求。
+
+**後端 (Rails 8 / Ruby 3.4)**：
+- 使用 Service Object 處理複雜業務邏輯
+- 優先使用 ActiveRecord scope 而非原始 SQL
+- 所有 Controller 輸入使用 Strong Parameters
+
+**前端 (React 19 / Vite 5 / Tailwind CSS 3)**：
+- 僅使用函數式元件與 Hooks（不使用 Class 元件）
+- Tailwind 優先的樣式方法
+- 元件式架構於 `app/frontend/components/`
+
+**資料庫 (PostgreSQL)**：
+- Migration 盡可能保持可逆
+- 為外鍵和常查詢欄位建立索引
+
+## 治理規範
+
+本憲章定義 Weiya 專案不可妥協的標準。
+
+**修訂流程**：
+1. 提出變更並附上理由和影響評估
+2. 在憲章中記錄變更並增加版本號
+3. 如原則變更，更新相依模板
+4. 在批准前取得團隊共識
+
+**版本政策**：
+- MAJOR：原則移除或不向後相容的治理變更
+- MINOR：新增原則或重大擴展
+- PATCH：澄清、措辭改進、錯字修正
+
+**合規性**：
+- 所有 PR 必須符合憲章原則
+- 審查者應在程式碼審查時驗證原則遵守情況
+- 違規需在 PR 描述中提供明確理由
+
+**版本**: 1.0.0 | **批准日期**: 2025-12-31 | **最後修訂**: 2025-12-31
