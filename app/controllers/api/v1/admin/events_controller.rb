@@ -2,7 +2,7 @@ module Api
   module V1
     module Admin
       class EventsController < BaseController
-        before_action :set_event, only: [:show, :update, :destroy, :publish]
+        before_action :set_event, only: [:show, :update, :destroy, :publish, :generate_slug, :clear_slug]
 
         def index
           @events = Event.order(created_at: :desc)
@@ -55,6 +55,16 @@ module Api
           end
         end
 
+        def generate_slug
+          @event.generate_slug!
+          render :show
+        end
+
+        def clear_slug
+          @event.clear_slug!
+          render :show
+        end
+
         private
 
         def set_event
@@ -62,7 +72,10 @@ module Api
         end
 
         def event_params
-          params.require(:event).permit(:name, :event_date, :password, :allow_repeat_win, required_fields: [])
+          params.require(:event).permit(
+            :name, :event_date, :password, :allow_repeat_win, :privacy_enabled, :public_access_enabled,
+            required_fields: [], display_fields: [], privacy_settings: {}
+          )
         end
       end
     end

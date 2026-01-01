@@ -5,18 +5,40 @@ module Api
         before_action :set_prize
 
         def create
-          # Validate sequential drawing: must draw prizes in position order
-          unless next_prize_to_draw?(@prize)
-            return render json: { error: "須按順序開獎，請先完成前面順位的獎項" }, status: :forbidden
+          simulate = params[:simulate] == true || params[:simulate] == "true"
+
+          # Skip sequential validation for simulation
+          unless simulate
+            unless next_prize_to_draw?(@prize)
+              return render json: { error: "須按順序開獎，請先完成前面順位的獎項" }, status: :forbidden
+            end
+
+            # Real draw only allowed when event is active
+            unless @prize.event.active?
+              return render json: { error: "活動必須為進行中狀態才能抽獎" }, status: :forbidden
+            end
+          end
+
+          # Simulation only allowed when event is draft
+          if simulate && !@prize.event.draft?
+            return render json: { error: "模擬抽獎只能在草稿狀態使用" }, status: :forbidden
           end
 
           count = params[:count]&.to_i
 
-          result = DrawService.new(@prize, admin: current_admin, count: count).call
+          result = DrawService.new(@prize, admin: current_admin, count: count, simulate: simulate).call
 
           if result.success?
-            @prize = @prize.reload
-            @winners = result.winners
+            if simulate
+              render json: {
+                simulated: true,
+                prize: { id: @prize.id, name: @prize.name },
+                winners: result.winners
+              }
+            else
+              @prize = @prize.reload
+              @winners = result.winners
+            end
           else
             render json: { error: result.error }, status: :unprocessable_entity
           end

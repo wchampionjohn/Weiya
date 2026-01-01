@@ -17,6 +17,8 @@ Rails.application.routes.draw do
           end
           member do
             post :publish
+            post :generate_slug
+            delete :clear_slug
           end
           # Event-specific participants
           collection do
