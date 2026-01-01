@@ -1,5 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import theme from '../lib/theme';
@@ -12,10 +13,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const root = createRoot(container);
     root.render(
       <React.StrictMode>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <AdminApp />
-        </ThemeProvider>
+        <BrowserRouter>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <Routes>
+              <Route path="/admin/*" element={<AdminApp />} />
+            </Routes>
+          </ThemeProvider>
+        </BrowserRouter>
       </React.StrictMode>
     );
   } else {

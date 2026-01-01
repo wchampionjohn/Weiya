@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, useLocation, useParams, Link as RouterLink } from 'react-router-dom';
 import {
   Box,
   AppBar,
@@ -18,7 +19,6 @@ import {
   Chip,
   Breadcrumbs,
   Link,
-  Container,
   Paper,
   Button,
   Alert,
@@ -27,7 +27,6 @@ import {
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  Event as EventIcon,
   EmojiEvents as PrizeIcon,
   People as PeopleIcon,
   Casino as DrawIcon,
@@ -42,6 +41,7 @@ import {
 } from '@mui/icons-material';
 import { AuthProvider, useAuth } from './AuthContext';
 import LoginPage from './LoginPage';
+import GlobalLoading from './GlobalLoading';
 import EventList from './EventList';
 import EventForm from './EventForm';
 import PrizeManager from './PrizeManager';
@@ -54,31 +54,143 @@ import { adminApi } from '../../lib/api';
 
 const drawerWidth = 260;
 
-function AdminContent() {
-  const { isAuthenticated, admin, logout, loading } = useAuth();
-  const [view, setView] = useState('list');
-  const [selectedEvent, setSelectedEvent] = useState(null);
+// Event detail page with tabs
+function EventDetail({ showSnackbar }) {
+  const { eventId, tab = 'settings' } = useParams();
+  const navigate = useNavigate();
   const [eventDetails, setEventDetails] = useState(null);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [activeTab, setActiveTab] = useState('prizes');
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (selectedEvent?.id) {
-      loadEventDetails(selectedEvent.id);
-    }
-  }, [selectedEvent?.id]);
-
-  const loadEventDetails = async (eventId) => {
+  const loadEventDetails = async () => {
     try {
+      setLoading(true);
       const response = await adminApi.getEvent(eventId);
       setEventDetails(response.data);
     } catch (err) {
       console.error('載入活動詳情失敗:', err);
       showSnackbar('載入活動詳情失敗', 'error');
+    } finally {
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadEventDetails();
+  }, [eventId]);
+
+  const handlePublish = async () => {
+    try {
+      await adminApi.publishEvent(eventId);
+      await loadEventDetails();
+      showSnackbar('活動已發佈！');
+    } catch (err) {
+      showSnackbar(err.response?.data?.error || '發佈失敗', 'error');
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!eventDetails) {
+    return (
+      <Alert severity="error">活動不存在</Alert>
+    );
+  }
+
+  return (
+    <Box>
+      {eventDetails.status === 'draft' && (
+        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button
+            variant="contained"
+            color="success"
+            startIcon={<PublishIcon />}
+            onClick={handlePublish}
+          >
+            發佈活動
+          </Button>
+        </Box>
+      )}
+
+      {tab === 'settings' && (
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            活動設定
+          </Typography>
+          <EventForm
+            event={eventDetails}
+            onSave={() => { loadEventDetails(); showSnackbar('活動設定已更新！'); }}
+            onCancel={() => navigate(`/admin/events/${eventId}/prizes`)}
+          />
+        </Paper>
+      )}
+
+      {tab === 'prizes' && (
+        <PrizeManager
+          event={eventDetails}
+          prizes={eventDetails.prizes}
+          onUpdate={loadEventDetails}
+        />
+      )}
+
+      {tab === 'participants' && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <ParticipantImport
+            eventId={eventDetails.id}
+            onSuccess={() => { loadEventDetails(); showSnackbar('參與者已匯入！'); }}
+          />
+          <ParticipantList
+            event={eventDetails}
+            onUpdate={loadEventDetails}
+          />
+        </Box>
+      )}
+
+      {tab === 'draw' && (
+        <DrawControl
+          event={eventDetails}
+          prizes={eventDetails.prizes}
+          onUpdate={loadEventDetails}
+        />
+      )}
+
+      {tab === 'winners' && (
+        <WinnerManagement eventId={eventDetails.id} />
+      )}
+    </Box>
+  );
+}
+
+function AdminContent() {
+  const { isAuthenticated, admin, logout, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [currentEvent, setCurrentEvent] = useState(null);
+
+  // Parse current route to determine active section
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  const isEventPage = pathParts[1] === 'events' && pathParts[2];
+  const eventId = isEventPage ? pathParts[2] : null;
+  const activeTab = pathParts[3] || 'settings';
+
+  // Load event details when on event page
+  useEffect(() => {
+    if (eventId) {
+      adminApi.getEvent(eventId)
+        .then(res => setCurrentEvent(res.data))
+        .catch(() => setCurrentEvent(null));
+    } else {
+      setCurrentEvent(null);
+    }
+  }, [eventId]);
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -101,7 +213,7 @@ function AdminContent() {
     logout();
   };
 
-  if (loading) {
+  if (authLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
         <CircularProgress />
@@ -110,29 +222,11 @@ function AdminContent() {
   }
 
   if (!isAuthenticated) {
-    return <LoginPage onLoginSuccess={() => setView('list')} />;
+    return <LoginPage onLoginSuccess={() => navigate('/admin')} />;
   }
 
   const handleEventSelect = (event) => {
-    setSelectedEvent(event);
-    setActiveTab('settings');
-    setView('event');
-  };
-
-  const handleBack = () => {
-    setSelectedEvent(null);
-    setEventDetails(null);
-    setView('list');
-  };
-
-  const handlePublish = async () => {
-    try {
-      await adminApi.publishEvent(selectedEvent.id);
-      await loadEventDetails(selectedEvent.id);
-      showSnackbar('活動已發佈！');
-    } catch (err) {
-      showSnackbar(err.response?.data?.error || '發佈失敗', 'error');
-    }
+    navigate(`/admin/events/${event.id}/settings`);
   };
 
   const getStatusColor = (status) => {
@@ -172,8 +266,9 @@ function AdminContent() {
       <List sx={{ px: 1 }}>
         <ListItem disablePadding sx={{ mb: 0.5 }}>
           <ListItemButton
-            selected={view === 'list'}
-            onClick={() => { setView('list'); setSelectedEvent(null); setEventDetails(null); }}
+            component={RouterLink}
+            to="/admin"
+            selected={location.pathname === '/admin' || location.pathname === '/admin/'}
             sx={{ borderRadius: 2 }}
           >
             <ListItemIcon><DashboardIcon /></ListItemIcon>
@@ -182,17 +277,9 @@ function AdminContent() {
         </ListItem>
         <ListItem disablePadding sx={{ mb: 0.5 }}>
           <ListItemButton
-            onClick={() => setView('new')}
-            sx={{ borderRadius: 2 }}
-          >
-            <ListItemIcon><AddIcon /></ListItemIcon>
-            <ListItemText primary="新增活動" />
-          </ListItemButton>
-        </ListItem>
-        <ListItem disablePadding sx={{ mb: 0.5 }}>
-          <ListItemButton
-            selected={view === 'participants'}
-            onClick={() => { setView('participants'); setSelectedEvent(null); setEventDetails(null); }}
+            component={RouterLink}
+            to="/admin/participants"
+            selected={location.pathname === '/admin/participants'}
             sx={{ borderRadius: 2 }}
           >
             <ListItemIcon><GroupIcon /></ListItemIcon>
@@ -201,7 +288,7 @@ function AdminContent() {
         </ListItem>
       </List>
 
-      {eventDetails && (
+      {currentEvent && (
         <>
           <Divider sx={{ my: 1 }} />
           <Box sx={{ px: 2, py: 1 }}>
@@ -209,12 +296,12 @@ function AdminContent() {
               目前活動
             </Typography>
             <Typography variant="subtitle2" noWrap sx={{ mt: 0.5 }}>
-              {eventDetails.name}
+              {currentEvent.name}
             </Typography>
             <Chip
               size="small"
-              label={getStatusLabel(eventDetails.status)}
-              color={getStatusColor(eventDetails.status)}
+              label={getStatusLabel(currentEvent.status)}
+              color={getStatusColor(currentEvent.status)}
               sx={{ mt: 1 }}
             />
           </Box>
@@ -222,8 +309,9 @@ function AdminContent() {
             {eventTabs.map((tab) => (
               <ListItem key={tab.id} disablePadding sx={{ mb: 0.5 }}>
                 <ListItemButton
-                  selected={view === 'event' && activeTab === tab.id}
-                  onClick={() => { setView('event'); setActiveTab(tab.id); }}
+                  component={RouterLink}
+                  to={`/admin/events/${eventId}/${tab.id}`}
+                  selected={isEventPage && activeTab === tab.id}
                   sx={{ borderRadius: 2 }}
                 >
                   <ListItemIcon>{tab.icon}</ListItemIcon>
@@ -236,6 +324,37 @@ function AdminContent() {
       )}
     </Box>
   );
+
+  // Breadcrumb logic
+  const getBreadcrumbs = () => {
+    const crumbs = [
+      <Link
+        key="home"
+        component={RouterLink}
+        to="/admin"
+        underline="hover"
+        color="inherit"
+      >
+        活動列表
+      </Link>
+    ];
+
+    if (location.pathname === '/admin/new') {
+      crumbs.push(
+        <Typography key="new" color="text.primary">新增活動</Typography>
+      );
+    } else if (location.pathname === '/admin/participants') {
+      crumbs.push(
+        <Typography key="participants" color="text.primary">參與者管理</Typography>
+      );
+    } else if (currentEvent) {
+      crumbs.push(
+        <Typography key="event" color="text.primary">{currentEvent.name}</Typography>
+      );
+    }
+
+    return crumbs;
+  };
 
   return (
     <Box sx={{ display: 'flex' }}>
@@ -261,34 +380,9 @@ function AdminContent() {
 
           <Box sx={{ flexGrow: 1 }}>
             <Breadcrumbs aria-label="breadcrumb">
-              <Link
-                underline="hover"
-                color="inherit"
-                href="#"
-                onClick={(e) => { e.preventDefault(); handleBack(); }}
-              >
-                活動列表
-              </Link>
-              {eventDetails && (
-                <Typography color="text.primary">{eventDetails.name}</Typography>
-              )}
-              {view === 'participants' && !eventDetails && (
-                <Typography color="text.primary">參與者管理</Typography>
-              )}
+              {getBreadcrumbs()}
             </Breadcrumbs>
           </Box>
-
-          {eventDetails?.status === 'draft' && (
-            <Button
-              variant="contained"
-              color="success"
-              startIcon={<PublishIcon />}
-              onClick={handlePublish}
-              sx={{ mr: 2 }}
-            >
-              發佈活動
-            </Button>
-          )}
 
           <IconButton onClick={handleMenuOpen} sx={{ p: 0 }}>
             <Avatar sx={{ bgcolor: 'primary.main' }}>
@@ -359,81 +453,30 @@ function AdminContent() {
       >
         <Toolbar />
 
-        {view === 'list' && (
-          <EventList
-            onSelect={handleEventSelect}
-            onNew={() => setView('new')}
-          />
-        )}
-
-        {view === 'new' && (
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-              <IconButton onClick={() => setView('list')} sx={{ mr: 1 }}>
-                <ArrowBackIcon />
-              </IconButton>
-              <Typography variant="h5">新增活動</Typography>
-            </Box>
-            <EventForm
-              onSave={() => { setView('list'); showSnackbar('活動已建立！'); }}
-              onCancel={() => setView('list')}
+        <Routes>
+          <Route index element={
+            <EventList
+              onSelect={handleEventSelect}
+              onNew={() => navigate('/admin/new')}
             />
-          </Paper>
-        )}
-
-        {view === 'participants' && (
-          <ParticipantManagement />
-        )}
-
-        {view === 'event' && eventDetails && (
-          <Box>
-            {activeTab === 'settings' && (
-              <Paper sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  活動設定
-                </Typography>
-                <EventForm
-                  event={eventDetails}
-                  onSave={() => { loadEventDetails(eventDetails.id); showSnackbar('活動設定已更新！'); }}
-                  onCancel={() => setActiveTab('prizes')}
-                />
-              </Paper>
-            )}
-
-            {activeTab === 'prizes' && (
-              <PrizeManager
-                event={eventDetails}
-                prizes={eventDetails.prizes}
-                onUpdate={() => loadEventDetails(eventDetails.id)}
-              />
-            )}
-
-            {activeTab === 'participants' && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <ParticipantImport
-                  eventId={eventDetails.id}
-                  onSuccess={() => { loadEventDetails(eventDetails.id); showSnackbar('參與者已匯入！'); }}
-                />
-                <ParticipantList
-                  event={eventDetails}
-                  onUpdate={() => loadEventDetails(eventDetails.id)}
-                />
+          } />
+          <Route path="new" element={
+            <Paper sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <IconButton onClick={() => navigate('/admin')} sx={{ mr: 1 }}>
+                  <ArrowBackIcon />
+                </IconButton>
+                <Typography variant="h5">新增活動</Typography>
               </Box>
-            )}
-
-            {activeTab === 'draw' && (
-              <DrawControl
-                event={eventDetails}
-                prizes={eventDetails.prizes}
-                onUpdate={() => loadEventDetails(eventDetails.id)}
+              <EventForm
+                onSave={() => { navigate('/admin'); showSnackbar('活動已建立！'); }}
+                onCancel={() => navigate('/admin')}
               />
-            )}
-
-            {activeTab === 'winners' && (
-              <WinnerManagement eventId={eventDetails.id} />
-            )}
-          </Box>
-        )}
+            </Paper>
+          } />
+          <Route path="participants" element={<ParticipantManagement />} />
+          <Route path="events/:eventId/:tab?" element={<EventDetail showSnackbar={showSnackbar} />} />
+        </Routes>
       </Box>
 
       <Snackbar
@@ -458,6 +501,7 @@ export default function AdminApp() {
   return (
     <AuthProvider>
       <AdminContent />
+      <GlobalLoading />
     </AuthProvider>
   );
 }
