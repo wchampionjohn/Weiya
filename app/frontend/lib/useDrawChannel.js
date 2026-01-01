@@ -25,7 +25,8 @@ export function useDrawChannel(eventId, onDrawResult) {
         },
         received(data) {
           console.log('Received draw data:', data);
-          if (data.type === 'draw_result' && callbackRef.current) {
+          // Handle both real draw results and simulation results
+          if ((data.type === 'draw_result' || data.type === 'simulation_result') && callbackRef.current) {
             callbackRef.current(data);
           }
         },

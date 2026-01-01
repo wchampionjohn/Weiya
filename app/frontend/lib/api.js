@@ -9,17 +9,47 @@ const api = axios.create({
   withCredentials: true,
 });
 
+// Loading state management
+let loadingCount = 0;
+let loadingListeners = [];
+
+export const loadingManager = {
+  subscribe: (listener) => {
+    loadingListeners.push(listener);
+    return () => {
+      loadingListeners = loadingListeners.filter(l => l !== listener);
+    };
+  },
+  isLoading: () => loadingCount > 0,
+};
+
+const notifyListeners = () => {
+  loadingListeners.forEach(listener => listener(loadingCount > 0));
+};
+
 api.interceptors.request.use((config) => {
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
   if (csrfToken) {
     config.headers['X-CSRF-Token'] = csrfToken;
   }
+
+  // Increment loading count
+  loadingCount++;
+  notifyListeners();
+
   return config;
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    loadingCount = Math.max(0, loadingCount - 1);
+    notifyListeners();
+    return response;
+  },
   (error) => {
+    loadingCount = Math.max(0, loadingCount - 1);
+    notifyListeners();
+
     if (error.response?.status === 401) {
       // Clear localStorage to sync auth state with server
       localStorage.removeItem('admin');
@@ -43,6 +73,8 @@ export const adminApi = {
   updateEvent: (id, data) => api.patch(`/admin/events/${id}`, { event: data }),
   deleteEvent: (id) => api.delete(`/admin/events/${id}`),
   publishEvent: (id) => api.post(`/admin/events/${id}/publish`),
+  generateSlug: (id) => api.post(`/admin/events/${id}/generate_slug`),
+  clearSlug: (id) => api.delete(`/admin/events/${id}/clear_slug`),
 
   // Prizes
   createPrize: (eventId, data) => api.post(`/admin/events/${eventId}/prizes`, { prize: data }),
@@ -71,6 +103,7 @@ export const adminApi = {
 
   // Draw
   executeDraw: (prizeId, count) => api.post(`/admin/prizes/${prizeId}/draw`, { count }),
+  simulateDraw: (prizeId, count) => api.post(`/admin/prizes/${prizeId}/draw`, { count, simulate: true }),
 
   // Winners
   getWinners: (eventId, options = {}) => api.get('/admin/winners', { params: { event_id: eventId, ...options } }),
