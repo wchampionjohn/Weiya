@@ -7,11 +7,15 @@ class HomeController < ApplicationController
   end
 
   def event
-    @event = Event.find_by(id: params[:id])
+    @event = Event.find_by_slug_or_id(params[:id])
 
-    if @event.nil? || @event.draft?
+    if @event.nil?
+      render file: Rails.public_path.join("404.html"), status: :not_found, layout: false
+    elsif !@event.public_access_enabled && !@event.draft?
       render file: Rails.public_path.join("404.html"), status: :not_found, layout: false
     else
+      # Draft events can be previewed
+      @preview_mode = @event.draft?
       render :event, layout: "event"
     end
   end

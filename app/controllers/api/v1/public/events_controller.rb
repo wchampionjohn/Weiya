@@ -4,10 +4,12 @@ module Api
       class EventsController < BaseController
         before_action :set_event
         before_action :require_published!
+        before_action :require_public_access!
         before_action :verify_event_access!, only: [:show]
 
         def show
-          @event = Event.includes(prizes: { winners: { event_participant: :participant } }).find(params[:id])
+          # @event is already set by before_action, just eager load associations
+          @event = Event.includes(prizes: { winners: { event_participant: :participant } }).find(@event.id)
         end
 
         def verify
@@ -36,11 +38,19 @@ module Api
         private
 
         def set_event
-          @event = Event.find(params[:id])
+          @event = Event.find_by_slug_or_id(params[:id])
+          render json: { error: "活動不存在" }, status: :not_found unless @event
         end
 
         def require_published!
-          return if @event.active? || @event.completed?
+          # Allow draft events for preview mode
+          return if @event.draft? || @event.active? || @event.completed?
+
+          render json: { error: "活動不存在" }, status: :not_found
+        end
+
+        def require_public_access!
+          return if @event.draft? || @event.public_access_enabled
 
           render json: { error: "活動不存在" }, status: :not_found
         end
