@@ -44,7 +44,4 @@ RSpec.describe 'Api::V1::Public::Events', type: :request do
     end
   end
 
-  def json_response
-    JSON.parse(response.body)
-  end
 end

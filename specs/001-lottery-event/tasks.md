@@ -47,9 +47,9 @@
 
 ### 模型測試
 
-- [ ] T010 [P] 更新 Participant 模型測試 `spec/models/participant_spec.rb`
-- [ ] T011 [P] 建立 EventParticipant 模型測試 `spec/models/event_participant_spec.rb`
-- [ ] T012 [P] 更新 Winner 模型測試 `spec/models/winner_spec.rb`
+- [X] T010 [P] 更新 Participant 模型測試 `spec/models/participant_spec.rb`
+- [X] T011 [P] 建立 EventParticipant 模型測試 `spec/models/event_participant_spec.rb`
+- [X] T012 [P] 更新 Winner 模型測試 `spec/models/winner_spec.rb`
 
 ---
 
@@ -60,22 +60,22 @@
 ### 全域參與者 API
 
 - [X] T013 [P] 建立 ParticipantsController（全域 CRUD）`app/controllers/api/v1/admin/participants_controller.rb`
-- [ ] T014 [P] 建立全域參與者 API 測試 `spec/requests/api/v1/admin/participants_spec.rb`
+- [X] T014 [P] 建立全域參與者 API 測試 `spec/requests/api/v1/admin/participants_spec.rb`
 
 ### 活動參與者關聯 API
 
 - [X] T015 [P] 建立 EventParticipantsController `app/controllers/api/v1/admin/event_participants_controller.rb`
-- [ ] T016 [P] 建立活動參與者 API 測試 `spec/requests/api/v1/admin/event_participants_spec.rb`
+- [X] T016 [P] 建立活動參與者 API 測試 `spec/requests/api/v1/admin/event_participants_spec.rb`
 
 ### 更新匯入服務
 
 - [X] T017 更新 ParticipantImportService（支援全域匯入或活動匯入）`app/services/participant_import_service.rb`
-- [ ] T018 更新 ParticipantImportService 測試 `spec/services/participant_import_service_spec.rb`
+- [X] T018 更新 ParticipantImportService 測試 `spec/services/participant_import_service_spec.rb`
 
 ### 更新抽獎服務
 
 - [X] T019 更新 DrawService（使用 event_participant_id）`app/services/draw_service.rb`
-- [ ] T020 更新 DrawService 測試 `spec/services/draw_service_spec.rb`
+- [X] T020 更新 DrawService 測試 `spec/services/draw_service_spec.rb`
 
 ---
 
@@ -86,7 +86,7 @@
 ### 服務更新
 
 - [X] T021 完善 PrivacyMaskService（支援各欄位獨立設定）`app/services/privacy_mask_service.rb`
-- [ ] T022 更新 PrivacyMaskService 測試 `spec/services/privacy_mask_service_spec.rb`
+- [X] T022 更新 PrivacyMaskService 測試 `spec/services/privacy_mask_service_spec.rb`
 
 ### 後台獎項設定 UI
 
@@ -117,7 +117,7 @@
 ### 前台 API 更新
 
 - [X] T034 更新 Public::EventsController（草稿返回 404）`app/controllers/api/v1/public/events_controller.rb`
-- [ ] T035 更新公開活動 API 測試 `spec/requests/api/v1/public/events_spec.rb`
+- [X] T035 更新公開活動 API 測試 `spec/requests/api/v1/public/events_spec.rb`
 - [X] T036 更新 Public::SessionsController（改用活動限定 session）`app/controllers/api/v1/public/sessions_controller.rb`
 
 ---
@@ -200,17 +200,17 @@
 
 ---
 
-## Phase 10: 測試與驗證
+## Phase 10: 測試與驗證 ✅
 
 **Purpose**: 確保所有功能正常運作
 
 ### 測試
 
-- [ ] T058 執行完整測試套件 `bundle exec rspec`
-- [ ] T059 驗證前台路由功能（各頁面可正常切換）
-- [ ] T060 驗證隱私遮罩功能（各欄位獨立設定）
-- [ ] T061 驗證參與者跨活動使用功能
-- [ ] T062 驗證草稿活動返回 404
+- [X] T058 執行完整測試套件 `bundle exec rspec` (206 examples, 0 failures)
+- [X] T059 驗證前台路由功能（各頁面可正常切換）
+- [X] T060 驗證隱私遮罩功能（各欄位獨立設定）
+- [X] T061 驗證參與者跨活動使用功能
+- [X] T062 驗證草稿活動返回 404
 
 ---
 
@@ -227,7 +227,7 @@
 7. **Phase 7: 介面中文化** - ✅ 已完成
 8. **Phase 8: Seed 資料擴充** - ✅ 已完成
 9. **Phase 9: Favicon 設計** - ✅ 已完成
-10. **Phase 10: 測試與驗證** - 待執行
+10. **Phase 10: 測試與驗證** - ✅ 已完成
 
 ### 可並行執行
 
@@ -264,16 +264,16 @@ Phase 9 (Favicon) ✅ - 可隨時執行
 ## 任務總數
 
 - Phase 1: 4 tasks ✅
-- Phase 2: 8 tasks (5 ✅ + 3 待測試)
-- Phase 3: 8 tasks (4 ✅ + 4 待測試)
+- Phase 2: 8 tasks ✅
+- Phase 3: 8 tasks ✅
 - Phase 4: 4 tasks ✅
-- Phase 5: 12 tasks (11 ✅ + 1 待測試)
+- Phase 5: 12 tasks ✅
 - Phase 6: 7 tasks ✅
-- Phase 7: 10 tasks (9 ✅ + 1 待 API)
+- Phase 7: 10 tasks (9 ✅ + 1 待 API 錯誤中文化)
 - Phase 8: 1 task ✅
 - Phase 9: 4 tasks ✅
-- Phase 10: 5 tasks (待執行)
+- Phase 10: 5 tasks ✅
 
 **Total: 63 tasks**
-**Completed: ~53 tasks**
-**Remaining: ~10 tasks (主要為測試任務)**
+**Completed: 62 tasks**
+**Remaining: 1 task (T052 API 錯誤訊息中文化)**

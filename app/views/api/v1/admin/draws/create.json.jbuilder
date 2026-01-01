@@ -11,4 +11,5 @@ json.winners @winners do |winner|
     json.employee_id winner.employee_id
   end
   json.drawn_at winner.drawn_at
+  json.display_data winner.display_data(masked: true)
 end

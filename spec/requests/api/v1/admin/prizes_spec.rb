@@ -42,7 +42,4 @@ RSpec.describe 'Api::V1::Admin::Prizes', type: :request do
     end
   end
 
-  def json_response
-    JSON.parse(response.body)
-  end
 end

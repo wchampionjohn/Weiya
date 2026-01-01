@@ -19,12 +19,60 @@ RSpec.describe ParticipantImportService do
         expect(subject.success?).to be true
       end
 
-      it 'imports participants' do
+      it 'creates global participants' do
         expect { subject }.to change(Participant, :count).by(2)
+      end
+
+      it 'adds participants to event' do
+        expect { subject }.to change(EventParticipant, :count).by(2)
       end
 
       it 'returns imported count' do
         expect(subject.imported_count).to eq(2)
+      end
+    end
+
+    context 'with existing participant' do
+      let!(:existing_participant) { create(:participant, name: 'John Doe', employee_id: 'E001') }
+      let(:csv_content) do
+        <<~CSV
+          name,employee_id,phone,email
+          John Doe,E001,0912345678,john@example.com
+        CSV
+      end
+
+      subject { described_class.new(event, csv_content).call }
+
+      it 'does not create duplicate participant' do
+        expect { subject }.not_to change(Participant, :count)
+      end
+
+      it 'adds existing participant to event' do
+        expect { subject }.to change(EventParticipant, :count).by(1)
+        expect(event.participants).to include(existing_participant)
+      end
+    end
+
+    context 'with participant already in event' do
+      let!(:participant) { create(:participant, name: 'John Doe', employee_id: 'E001') }
+      let!(:event_participant) { create(:event_participant, event: event, participant: participant) }
+
+      let(:csv_content) do
+        <<~CSV
+          name,employee_id,phone,email
+          John Doe,E001,0912345678,john@example.com
+        CSV
+      end
+
+      subject { described_class.new(event, csv_content).call }
+
+      it 'does not add duplicate event participant' do
+        expect { subject }.not_to change(EventParticipant, :count)
+      end
+
+      it 'returns success with zero imports' do
+        expect(subject.success?).to be true
+        expect(subject.imported_count).to eq(0)
       end
     end
 
@@ -48,6 +96,58 @@ RSpec.describe ParticipantImportService do
 
       it 'does not import any participants' do
         expect { subject }.not_to change(Participant, :count)
+      end
+
+      it 'does not add any event participants' do
+        expect { subject }.not_to change(EventParticipant, :count)
+      end
+    end
+
+    context 'with duplicate employee_id in CSV' do
+      let(:csv_content) do
+        <<~CSV
+          name,employee_id,phone,email
+          John Doe,E001,0912345678,john@example.com
+          Jane Doe,E001,0923456789,jane@example.com
+        CSV
+      end
+
+      subject { described_class.new(event, csv_content).call }
+
+      it 'handles duplicate by finding existing participant' do
+        expect { subject }.to change(Participant, :count).by(1)
+        expect { subject }.not_to change(EventParticipant, :count)
+      end
+    end
+
+    context 'with mixed valid and invalid data' do
+      let(:csv_content) do
+        <<~CSV
+          name,employee_id,phone,email
+          John Doe,E001,0912345678,john@example.com
+          ,E002,0923456789,jane@example.com
+        CSV
+      end
+
+      subject { described_class.new(event, csv_content).call }
+
+      it 'rolls back all changes on error' do
+        expect { subject }.not_to change(Participant, :count)
+        expect { subject }.not_to change(EventParticipant, :count)
+      end
+    end
+
+    context 'with skip_header option' do
+      let(:csv_content) do
+        <<~CSV
+          John Doe,E001,0912345678,john@example.com
+        CSV
+      end
+
+      it 'does not skip header when skip_header is false' do
+        result = described_class.new(event, csv_content, skip_header: false).call
+        expect(result.success?).to be true
+        expect(result.imported_count).to eq(1)
       end
     end
   end

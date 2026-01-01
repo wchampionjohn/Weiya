@@ -11,18 +11,20 @@ module Api
             return render json: { error: "Invalid login field" }, status: :bad_request
           end
 
-          participant = event.participants.find_by(field => value)
+          event_participant = event.event_participants
+            .joins(:participant)
+            .find_by("participants.#{field}" => value)
 
-          if participant
-            session[:participant_id] = participant.id
+          if event_participant
+            session[:event_participant_id] = event_participant.id
             session[:participant_event_id] = event.id
 
             render json: {
               participant: {
-                id: participant.id,
-                name: participant.name
+                id: event_participant.participant.id,
+                name: event_participant.name
               },
-              wins: participant_wins(participant)
+              wins: participant_wins(event_participant)
             }
           else
             render json: { error: "Participant not found" }, status: :not_found
@@ -30,15 +32,15 @@ module Api
         end
 
         def destroy
-          session.delete(:participant_id)
+          session.delete(:event_participant_id)
           session.delete(:participant_event_id)
           render json: { message: "Logged out successfully" }
         end
 
         private
 
-        def participant_wins(participant)
-          participant.winners.includes(prize: :event).map do |winner|
+        def participant_wins(event_participant)
+          event_participant.winners.includes(:prize).map do |winner|
             {
               id: winner.id,
               prize: {

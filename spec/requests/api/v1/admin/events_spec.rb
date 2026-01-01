@@ -17,6 +17,16 @@ RSpec.describe 'Api::V1::Admin::Events', type: :request do
     end
   end
 
+  describe 'GET /api/v1/admin/events/:id' do
+    let(:event) { create(:event) }
+
+    it 'returns event details' do
+      get "/api/v1/admin/events/#{event.id}"
+      expect(response).to have_http_status(:success)
+      expect(json_response['name']).to eq(event.name)
+    end
+  end
+
   describe 'POST /api/v1/admin/events' do
     let(:valid_params) do
       {
@@ -35,6 +45,33 @@ RSpec.describe 'Api::V1::Admin::Events', type: :request do
 
       expect(response).to have_http_status(:created)
     end
+
+    it 'returns validation errors for invalid params' do
+      post '/api/v1/admin/events', params: { event: { name: '' } }
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
+
+  describe 'PATCH /api/v1/admin/events/:id' do
+    let(:event) { create(:event) }
+
+    it 'updates the event' do
+      patch "/api/v1/admin/events/#{event.id}", params: { event: { name: 'Updated Name' } }
+      expect(response).to have_http_status(:success)
+      expect(event.reload.name).to eq('Updated Name')
+    end
+  end
+
+  describe 'DELETE /api/v1/admin/events/:id' do
+    let!(:event) { create(:event) }
+
+    it 'deletes the event' do
+      expect {
+        delete "/api/v1/admin/events/#{event.id}"
+      }.to change(Event, :count).by(-1)
+
+      expect(response).to have_http_status(:no_content)
+    end
   end
 
   describe 'POST /api/v1/admin/events/:id/publish' do
@@ -47,7 +84,24 @@ RSpec.describe 'Api::V1::Admin::Events', type: :request do
     end
   end
 
-  def json_response
-    JSON.parse(response.body)
+  describe 'POST /api/v1/admin/events/:id/generate_slug' do
+    let(:event) { create(:event, public_slug: nil) }
+
+    it 'generates a random slug' do
+      post "/api/v1/admin/events/#{event.id}/generate_slug"
+      expect(response).to have_http_status(:success)
+      expect(event.reload.public_slug).to be_present
+    end
   end
+
+  describe 'DELETE /api/v1/admin/events/:id/clear_slug' do
+    let(:event) { create(:event, public_slug: 'abc123') }
+
+    it 'clears the slug' do
+      delete "/api/v1/admin/events/#{event.id}/clear_slug"
+      expect(response).to have_http_status(:success)
+      expect(event.reload.public_slug).to be_nil
+    end
+  end
+
 end

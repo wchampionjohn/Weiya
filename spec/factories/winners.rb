@@ -1,7 +1,7 @@
 FactoryBot.define do
   factory :winner do
     association :prize
-    association :participant
+    association :event_participant
     drawn_at { Time.current }
     distributed { false }
 

@@ -27,7 +27,4 @@ RSpec.describe 'Api::V1::Admin::Sessions', type: :request do
     end
   end
 
-  def json_response
-    JSON.parse(response.body)
-  end
 end
