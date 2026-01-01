@@ -8,10 +8,36 @@ class Event < ApplicationRecord
 
   validates :name, presence: true
   validates :event_date, presence: true
+  validates :public_slug, uniqueness: true, allow_nil: true
   validate :required_fields_must_have_at_least_one
 
   scope :active_or_completed, -> { where(status: [:active, :completed]) }
   scope :published, -> { where.not(status: :draft) }
+
+  def self.find_by_slug_or_id(identifier)
+    find_by(public_slug: identifier) || find_by(id: identifier)
+  end
+
+  def generate_slug!
+    loop do
+      self.public_slug = SecureRandom.alphanumeric(12).downcase
+      break unless Event.exists?(public_slug: public_slug)
+    end
+    save!
+    public_slug
+  end
+
+  def clear_slug!
+    update!(public_slug: nil)
+  end
+
+  def public_identifier
+    public_slug.presence || id
+  end
+
+  def use_random_url?
+    public_slug.present?
+  end
 
   def editable?
     draft?

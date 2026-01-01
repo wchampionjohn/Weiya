@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_31_222559) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_01_140430) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -41,6 +41,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_31_222559) do
     t.json "required_fields", default: [], null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.json "display_fields", default: ["name"], null: false
+    t.boolean "privacy_enabled", default: false, null: false
+    t.json "privacy_settings", default: {}, null: false
+    t.boolean "public_access_enabled", default: true, null: false
+    t.string "public_slug"
+    t.index ["public_slug"], name: "index_events_on_public_slug", unique: true, where: "(public_slug IS NOT NULL)"
     t.index ["status"], name: "index_events_on_status"
   end
 
