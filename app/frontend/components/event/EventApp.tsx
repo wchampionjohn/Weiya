@@ -39,6 +39,7 @@ interface EventContextType {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  previewMode: boolean;
 }
 
 const EventContext = createContext<EventContextType | null>(null);
@@ -53,9 +54,10 @@ export function useEvent() {
 
 interface EventAppProps {
   eventId: string;
+  previewMode?: boolean;
 }
 
-export default function EventApp({ eventId }: EventAppProps) {
+export default function EventApp({ eventId, previewMode = false }: EventAppProps) {
   const [event, setEvent] = useState<Event | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +124,12 @@ export default function EventApp({ eventId }: EventAppProps) {
   }
 
   return (
-    <EventContext.Provider value={{ event, loading, error, refresh: loadEvent }}>
+    <EventContext.Provider value={{ event, loading, error, refresh: loadEvent, previewMode }}>
+      {previewMode && (
+        <div className="bg-[#9B59B6] text-white text-center py-2 font-bold border-b-4 border-[#2C3E50]">
+          🔍 預覽模式 — 此活動尚未發佈，模擬抽獎結果不會儲存
+        </div>
+      )}
       <Routes>
         <Route path="/" element={<WelcomePage />} />
         <Route path="overview" element={<OverviewPage />} />

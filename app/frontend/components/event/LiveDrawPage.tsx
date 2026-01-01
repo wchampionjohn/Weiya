@@ -20,18 +20,19 @@ interface Prize {
 }
 
 interface DrawResult {
-  type: string;
+  type: 'draw_result' | 'simulation_result';
   prize_id: number;
   prize_name: string;
   winners: Array<{
     id: number;
     event_participant_id: number;
     display_data: Record<string, string>;
+    simulated?: boolean;
   }>;
 }
 
 export default function LiveDrawPage() {
-  const { event, refresh } = useEvent();
+  const { event, refresh, previewMode } = useEvent();
   const { id } = useParams();
   const [latestDraw, setLatestDraw] = useState<DrawResult | null>(null);
   const [showAnimation, setShowAnimation] = useState(false);
@@ -43,16 +44,14 @@ export default function LiveDrawPage() {
 
   useDrawChannel(event?.id, handleDrawResult);
 
-  useEffect(() => {
-    if (showAnimation) {
-      const timer = setTimeout(() => {
-        setShowAnimation(false);
-        setLatestDraw(null);
-        refresh();
-      }, 5000);
-      return () => clearTimeout(timer);
+  const handleAnimationClose = () => {
+    setShowAnimation(false);
+    // Only refresh data for real draws, not simulations
+    if (latestDraw?.type === 'draw_result') {
+      refresh();
     }
-  }, [showAnimation, refresh]);
+    setLatestDraw(null);
+  };
 
   const stats = useMemo(() => {
     if (!event) return null;
@@ -226,7 +225,7 @@ export default function LiveDrawPage() {
 
       {/* Draw Animation */}
       {showAnimation && latestDraw && (
-        <DrawAnimation draw={latestDraw} onComplete={() => setShowAnimation(false)} />
+        <DrawAnimation draw={latestDraw} onComplete={handleAnimationClose} />
       )}
 
       {/* Footer */}
