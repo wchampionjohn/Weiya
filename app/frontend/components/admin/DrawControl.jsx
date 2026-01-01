@@ -19,6 +19,7 @@ import {
   CheckCircle as CheckIcon,
   Schedule as ScheduleIcon,
   Lock as LockIcon,
+  PlayArrow as SimulateIcon,
 } from '@mui/icons-material';
 import { adminApi } from '../../lib/api';
 import DrawConfirmDialog from './DrawConfirmDialog';
@@ -29,6 +30,9 @@ export default function DrawControl({ event, prizes, onUpdate }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [drawResult, setDrawResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isSimulation, setIsSimulation] = useState(false);
+
+  const isDraft = event.status === 'draft';
 
   // Sort prizes by position for sequential drawing
   const sortedPrizes = useMemo(() => {
@@ -41,8 +45,9 @@ export default function DrawControl({ event, prizes, onUpdate }) {
     return sortedPrizes.find(p => !p.drawn);
   }, [sortedPrizes]);
 
-  const handleDrawClick = (prize) => {
+  const handleDrawClick = (prize, simulate = false) => {
     setSelectedPrize(prize);
+    setIsSimulation(simulate);
     setShowConfirm(true);
   };
 
@@ -65,11 +70,17 @@ export default function DrawControl({ event, prizes, onUpdate }) {
     setLoading(true);
 
     try {
-      const response = await adminApi.executeDraw(selectedPrize.id, count);
-      setDrawResult(response.data);
-      onUpdate?.();
+      let response;
+      if (isSimulation) {
+        response = await adminApi.simulateDraw(selectedPrize.id, count);
+        setDrawResult({ ...response.data, simulated: true });
+      } else {
+        response = await adminApi.executeDraw(selectedPrize.id, count);
+        setDrawResult(response.data);
+        onUpdate?.();
+      }
     } catch (err) {
-      alert(err.response?.data?.error || '抽獎失敗');
+      alert(err.response?.data?.error || (isSimulation ? '模擬抽獎失敗' : '抽獎失敗'));
     } finally {
       setLoading(false);
     }
@@ -93,9 +104,15 @@ export default function DrawControl({ event, prizes, onUpdate }) {
           抽獎控制
         </Typography>
 
-        {event.status !== 'active' && (
-          <Alert severity="warning" sx={{ mb: 3 }}>
-            活動必須處於「進行中」狀態才能執行抽獎。目前狀態：<strong>{getStatusLabel(event.status)}</strong>
+        {isDraft && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <strong>預覽模式</strong> — 可模擬抽獎測試流程，結果不會儲存。前台可同步預覽。
+          </Alert>
+        )}
+
+        {event.status === 'completed' && (
+          <Alert severity="success" sx={{ mb: 3 }}>
+            活動已完成
           </Alert>
         )}
 
@@ -133,12 +150,24 @@ export default function DrawControl({ event, prizes, onUpdate }) {
                         opacity: isNextToDraw ? 1 : 0.7,
                       }}
                       secondaryAction={
-                        isNextToDraw ? (
+                        isDraft ? (
+                          // Draft mode: show simulate button for any prize
+                          <Button
+                            variant="outlined"
+                            color="secondary"
+                            startIcon={loading && selectedPrize?.id === prize.id ? <CircularProgress size={16} color="inherit" /> : <SimulateIcon />}
+                            onClick={() => handleDrawClick(prize, true)}
+                            disabled={loading}
+                            size="small"
+                          >
+                            {loading && selectedPrize?.id === prize.id ? '模擬中...' : '模擬抽獎'}
+                          </Button>
+                        ) : isNextToDraw ? (
                           <Button
                             variant="contained"
                             color="error"
                             startIcon={loading && selectedPrize?.id === prize.id ? <CircularProgress size={16} color="inherit" /> : <DrawIcon />}
-                            onClick={() => handleDrawClick(prize)}
+                            onClick={() => handleDrawClick(prize, false)}
                             disabled={loading || event.status !== 'active'}
                             size="small"
                           >
@@ -244,6 +273,7 @@ export default function DrawControl({ event, prizes, onUpdate }) {
       {showConfirm && (
         <DrawConfirmDialog
           prize={selectedPrize}
+          simulate={isSimulation}
           onConfirm={handleConfirmDraw}
           onCancel={() => setShowConfirm(false)}
         />

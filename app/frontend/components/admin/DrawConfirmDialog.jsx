@@ -13,9 +13,11 @@ import {
 import {
   Warning as WarningIcon,
   Casino as DrawIcon,
+  PlayArrow as SimulateIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 
-export default function DrawConfirmDialog({ prize, onConfirm, onCancel }) {
+export default function DrawConfirmDialog({ prize, onConfirm, onCancel, simulate = false }) {
   const [count, setCount] = useState(prize.quantity);
 
   const handleCountChange = (e) => {
@@ -27,13 +29,13 @@ export default function DrawConfirmDialog({ prize, onConfirm, onCancel }) {
     <Dialog open onClose={onCancel} maxWidth="sm" fullWidth>
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <DrawIcon color="error" />
-          確認抽獎
+          {simulate ? <SimulateIcon color="secondary" /> : <DrawIcon color="error" />}
+          {simulate ? '模擬抽獎' : '確認抽獎'}
         </Box>
       </DialogTitle>
       <DialogContent>
         <Typography sx={{ mb: 3 }}>
-          即將為 <strong>{prize.name}</strong> 進行抽獎。
+          即將為 <strong>{prize.name}</strong> {simulate ? '進行模擬抽獎' : '進行抽獎'}。
         </Typography>
 
         <TextField
@@ -47,9 +49,15 @@ export default function DrawConfirmDialog({ prize, onConfirm, onCancel }) {
           sx={{ mb: 3 }}
         />
 
-        <Alert severity="warning" icon={<WarningIcon />}>
-          此操作無法復原。抽獎結果將即時廣播給所有觀看者。
-        </Alert>
+        {simulate ? (
+          <Alert severity="info" icon={<InfoIcon />}>
+            模擬結果不會儲存，僅供測試預覽用途。
+          </Alert>
+        ) : (
+          <Alert severity="warning" icon={<WarningIcon />}>
+            此操作無法復原。抽獎結果將即時廣播給所有觀看者。
+          </Alert>
+        )}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onCancel} variant="outlined">
@@ -58,10 +66,10 @@ export default function DrawConfirmDialog({ prize, onConfirm, onCancel }) {
         <Button
           onClick={() => onConfirm(count)}
           variant="contained"
-          color="error"
-          startIcon={<DrawIcon />}
+          color={simulate ? 'secondary' : 'error'}
+          startIcon={simulate ? <SimulateIcon /> : <DrawIcon />}
         >
-          確認抽獎
+          {simulate ? '開始模擬' : '確認抽獎'}
         </Button>
       </DialogActions>
     </Dialog>
