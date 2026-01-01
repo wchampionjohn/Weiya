@@ -15,6 +15,7 @@ import {
   Tooltip,
   InputAdornment,
   Switch,
+  Chip,
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -24,6 +25,9 @@ import {
   Link as LinkIcon,
   Visibility as DisplayIcon,
   VisibilityOff as PrivacyIcon,
+  Shuffle as RandomIcon,
+  Public as PublicIcon,
+  PublicOff as PublicOffIcon,
 } from '@mui/icons-material';
 import { adminApi } from '../../lib/api';
 
@@ -51,14 +55,44 @@ export default function EventForm({ event, onSave, onCancel }) {
       email: true,
       department: false,
     },
+    public_access_enabled: true,
   });
+  const [publicSlug, setPublicSlug] = useState(null);
+  const [slugLoading, setSlugLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
 
   const getPublicUrl = () => {
     if (!event?.id) return '';
-    return `${window.location.origin}/events/${event.id}`;
+    const identifier = publicSlug || event.id;
+    return `${window.location.origin}/events/${identifier}`;
+  };
+
+  const handleGenerateSlug = async () => {
+    if (!event?.id) return;
+    setSlugLoading(true);
+    try {
+      const response = await adminApi.generateSlug(event.id);
+      setPublicSlug(response.data.public_slug);
+    } catch (err) {
+      console.error('生成亂數網址失敗:', err);
+    } finally {
+      setSlugLoading(false);
+    }
+  };
+
+  const handleClearSlug = async () => {
+    if (!event?.id) return;
+    setSlugLoading(true);
+    try {
+      await adminApi.clearSlug(event.id);
+      setPublicSlug(null);
+    } catch (err) {
+      console.error('清除亂數網址失敗:', err);
+    } finally {
+      setSlugLoading(false);
+    }
   };
 
   const handleCopyUrl = async () => {
@@ -94,7 +128,9 @@ export default function EventForm({ event, onSave, onCancel }) {
           email: true,
           department: false,
         },
+        public_access_enabled: event.public_access_enabled !== false,
       });
+      setPublicSlug(event.public_slug || null);
     }
   }, [event]);
 
@@ -120,7 +156,12 @@ export default function EventForm({ event, onSave, onCancel }) {
     if (field === 'name') return;
 
     setFormData(prev => {
-      const fields = prev.display_fields.includes(field)
+      const isSelected = prev.display_fields.includes(field);
+      // Allow removing, but limit adding to max 2 fields total
+      if (!isSelected && prev.display_fields.length >= 2) {
+        return prev;
+      }
+      const fields = isSelected
         ? prev.display_fields.filter(f => f !== field)
         : [...prev.display_fields, field];
       return { ...prev, display_fields: fields };
@@ -251,23 +292,28 @@ export default function EventForm({ event, onSave, onCancel }) {
             </FormLabel>
           </Box>
           <FormHelperText sx={{ mb: 1 }}>
-            選擇在中獎名單中要顯示的欄位（姓名為必填）
+            選擇在中獎名單中要顯示的欄位（最多 2 項，姓名為必填）
           </FormHelperText>
           <FormGroup row>
-            {FIELD_OPTIONS.map(option => (
-              <FormControlLabel
-                key={option.value}
-                control={
-                  <Checkbox
-                    checked={formData.display_fields.includes(option.value)}
-                    onChange={() => handleDisplayFieldToggle(option.value)}
-                    disabled={option.required}
-                  />
-                }
-                label={option.label + (option.required ? '（必填）' : '')}
-                sx={{ minWidth: 120 }}
-              />
-            ))}
+            {FIELD_OPTIONS.map(option => {
+              const isSelected = formData.display_fields.includes(option.value);
+              const isMaxReached = formData.display_fields.length >= 2;
+              const isDisabled = option.required || (!isSelected && isMaxReached);
+              return (
+                <FormControlLabel
+                  key={option.value}
+                  control={
+                    <Checkbox
+                      checked={isSelected}
+                      onChange={() => handleDisplayFieldToggle(option.value)}
+                      disabled={isDisabled}
+                    />
+                  }
+                  label={option.label + (option.required ? '（必填）' : '')}
+                  sx={{ minWidth: 120 }}
+                />
+              );
+            })}
           </FormGroup>
         </Box>
 
@@ -322,37 +368,100 @@ export default function EventForm({ event, onSave, onCancel }) {
           <>
             <Divider />
             <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <LinkIcon color="primary" fontSize="small" />
-                <FormLabel component="legend" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                  活動公開網址
-                </FormLabel>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {formData.public_access_enabled ? (
+                    <PublicIcon color="success" fontSize="small" />
+                  ) : (
+                    <PublicOffIcon color="error" fontSize="small" />
+                  )}
+                  <FormLabel component="legend" sx={{ fontWeight: 600 }}>
+                    活動公開網址
+                  </FormLabel>
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.public_access_enabled}
+                      onChange={(e) => setFormData(prev => ({ ...prev, public_access_enabled: e.target.checked }))}
+                      color="success"
+                    />
+                  }
+                  label={formData.public_access_enabled ? '已開放' : '未開放'}
+                />
               </Box>
-              <TextField
-                fullWidth
-                size="small"
-                value={getPublicUrl()}
-                InputProps={{
-                  readOnly: true,
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <Tooltip title={copied ? '已複製！' : '複製網址'}>
-                        <IconButton size="small" onClick={handleCopyUrl}>
-                          <CopyIcon fontSize="small" color={copied ? 'success' : 'inherit'} />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="在新分頁開啟">
-                        <IconButton size="small" onClick={handleOpenUrl}>
-                          <OpenIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <FormHelperText>
-                分享此網址給參與者，讓他們觀看抽獎直播或查詢中獎結果
-              </FormHelperText>
+
+              {formData.public_access_enabled && (
+                <>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    value={getPublicUrl()}
+                    InputProps={{
+                      readOnly: true,
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <Tooltip title={copied ? '已複製！' : '複製網址'}>
+                            <IconButton size="small" onClick={handleCopyUrl}>
+                              <CopyIcon fontSize="small" color={copied ? 'success' : 'inherit'} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="在新分頁開啟">
+                            <IconButton size="small" onClick={handleOpenUrl}>
+                              <OpenIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{ mb: 2 }}
+                  />
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <RandomIcon fontSize="small" color={publicSlug ? 'primary' : 'disabled'} />
+                      <FormLabel sx={{ fontSize: '0.875rem' }}>
+                        亂數網址：
+                      </FormLabel>
+                      {publicSlug ? (
+                        <Chip label={publicSlug} size="small" color="primary" />
+                      ) : (
+                        <Chip label="未啟用" size="small" variant="outlined" />
+                      )}
+                    </Box>
+                    {publicSlug ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="error"
+                        onClick={handleClearSlug}
+                        disabled={slugLoading}
+                      >
+                        {slugLoading ? '處理中...' : '還原為 ID'}
+                      </Button>
+                    ) : (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<RandomIcon />}
+                        onClick={handleGenerateSlug}
+                        disabled={slugLoading}
+                      >
+                        {slugLoading ? '處理中...' : '產生亂數網址'}
+                      </Button>
+                    )}
+                  </Box>
+                  <FormHelperText>
+                    使用亂數網址可避免網址被猜測，提高活動安全性
+                  </FormHelperText>
+                </>
+              )}
+
+              {!formData.public_access_enabled && (
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  公開網址已關閉，參與者將無法訪問活動頁面
+                </Alert>
+              )}
             </Box>
           </>
         )}
