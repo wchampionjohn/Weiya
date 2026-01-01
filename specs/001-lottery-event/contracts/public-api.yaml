@@ -1,0 +1,378 @@
+openapi: 3.0.3
+info:
+  title: Lottery Public API
+  version: 1.1.0
+  description: 尾牙抽獎活動前台 API（更新於 2026-01-01）
+
+servers:
+  - url: /api/v1/public
+    description: Public API namespace
+
+tags:
+  - name: Events
+    description: 活動資訊
+  - name: Sessions
+    description: 參與者登入
+  - name: Winners
+    description: 中獎者資訊
+
+paths:
+  /events/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Events]
+      summary: 取得活動資訊
+      description: |
+        取得活動基本資訊與獎項列表。
+        - 活動不存在 → 404 + error: "找不到此活動"
+        - 活動未發布（草稿狀態）→ 404 + error: "活動尚未開放"
+      responses:
+        '200':
+          description: 活動資訊
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicEvent'
+        '404':
+          description: 活動不存在或尚未開放
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                not_found:
+                  summary: 活動不存在
+                  value:
+                    error: "找不到此活動"
+                not_published:
+                  summary: 活動未發布
+                  value:
+                    error: "活動尚未開放"
+
+  /events/{id}/verify:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Events]
+      summary: 驗證活動密碼
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 驗證成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+        '401':
+          description: 密碼錯誤
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /events/{event_id}/winners:
+    parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Winners]
+      summary: 取得中獎者列表（含隱私遮罩）
+      description: |
+        回傳活動的所有中獎者，資料會依據獎項的 privacy_settings 進行遮罩處理。
+        遮罩規則：
+        - 姓名: 王傳華 → 王○華
+        - 電話: 0912345678 → 0912-XXX-678
+        - Email: test@example.com → te***@example.com
+      responses:
+        '200':
+          description: 中獎者列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PublicWinner'
+
+  /events/{event_id}/prizes:
+    parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Events]
+      summary: 取得活動獎項列表
+      responses:
+        '200':
+          description: 獎項列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PublicPrize'
+
+  /events/{event_id}/session:
+    parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [Sessions]
+      summary: 參與者登入（活動限定）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [field, value]
+              properties:
+                field:
+                  type: string
+                  enum: [employee_id, phone, email]
+                  description: 用於識別的欄位
+                value:
+                  type: string
+                  description: 欄位值
+      responses:
+        '200':
+          description: 登入成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  participant:
+                    $ref: '#/components/schemas/ParticipantSession'
+                  prizes:
+                    type: array
+                    description: 該參與者在此活動中獎的獎項
+                    items:
+                      $ref: '#/components/schemas/MyPrize'
+        '404':
+          description: 找不到參與者
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Sessions]
+      summary: 參與者登出
+      responses:
+        '200':
+          description: 登出成功
+
+components:
+  schemas:
+    PublicEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        event_date:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [active, completed]
+          description: 前台只會看到已發布的活動
+        has_password:
+          type: boolean
+          description: 是否需要密碼
+        required_fields:
+          type: array
+          items:
+            type: string
+            enum: [employee_id, phone, email]
+          description: 參與者登入所需欄位
+        prizes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicPrize'
+        prizes_count:
+          type: integer
+        participants_count:
+          type: integer
+
+    PublicPrize:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        prize_type:
+          type: string
+          enum: [cash, gift]
+        value:
+          type: number
+        quantity:
+          type: integer
+        drawn:
+          type: boolean
+        drawn_at:
+          type: string
+          format: date-time
+        position:
+          type: integer
+        winners_count:
+          type: integer
+        winners:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicWinner'
+          description: 該獎項的中獎者（已套用遮罩）
+
+    PublicWinner:
+      type: object
+      properties:
+        id:
+          type: integer
+        prize_id:
+          type: integer
+        prize_name:
+          type: string
+        display_data:
+          type: object
+          description: 依獎項 privacy_settings 遮罩後的資料
+          properties:
+            name:
+              type: string
+              example: 王○華
+            phone:
+              type: string
+              example: 0912-XXX-678
+            email:
+              type: string
+              example: te***@example.com
+        drawn_at:
+          type: string
+          format: date-time
+
+    ParticipantSession:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        is_winner:
+          type: boolean
+          description: 是否在此活動中獎
+
+    MyPrize:
+      type: object
+      description: 參與者個人中獎資訊（完整，無遮罩）
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        prize_type:
+          type: string
+        value:
+          type: number
+        drawn_at:
+          type: string
+          format: date-time
+        distributed:
+          type: boolean
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+  # WebSocket Channel (non-OpenAPI, for documentation)
+  x-actioncable:
+    DrawChannel:
+      description: 開獎即時通知頻道
+      subscribe:
+        parameters:
+          event_id:
+            type: integer
+            description: 活動 ID
+      receive:
+        draw_started:
+          description: 開獎開始
+          type: object
+          properties:
+            prize_id:
+              type: integer
+            prize_name:
+              type: string
+        winner_announced:
+          description: 宣布中獎者（逐一宣布）
+          type: object
+          properties:
+            prize_id:
+              type: integer
+            winner:
+              $ref: '#/components/schemas/PublicWinner'
+        draw_completed:
+          description: 開獎完成
+          type: object
+          properties:
+            prize_id:
+              type: integer
+            winners:
+              type: array
+              items:
+                $ref: '#/components/schemas/PublicWinner'
+
+# 前台路由結構說明
+x-frontend-routes:
+  description: 前台 React SPA 路由結構
+  routes:
+    - path: /events/:id
+      component: EventHomePage
+      description: 活動首頁，顯示活動資訊與獎項概覽
+    - path: /events/:id/live
+      component: LiveDrawPage
+      description: 開獎直播頁，即時顯示開獎過程與中獎者
+    - path: /events/:id/login
+      component: ParticipantLoginPage
+      description: 參與者登入頁，輸入員工編號/電話/Email 登入
+    - path: /events/:id/results
+      component: ResultsPage
+      description: 中獎記錄頁，顯示所有已開獎獎項與中獎者
+    - path: /events/:id/my
+      component: MyResultsPage
+      description: 個人中獎查詢（需登入）
+  error_pages:
+    - path: /404
+      component: NotFoundPage
+      triggers:
+        - 活動不存在
+        - 活動未發布（草稿狀態）

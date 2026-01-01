@@ -1,23 +1,24 @@
 # Data Model: 尾牙抽獎活動系統
 
-**Date**: 2025-12-31
+**Date**: 2026-01-01
 **Feature**: 001-lottery-event
+**Updated**: 2026-01-01 (重構參與者模型支援跨活動使用)
 
 ## Entity Relationship Diagram
 
 ```
-┌─────────────┐       ┌─────────────┐       ┌─────────────────┐
-│   Admin     │       │    Event    │       │   Participant   │
-├─────────────┤       ├─────────────┤       ├─────────────────┤
-│ id          │       │ id          │◄──────│ event_id (FK)   │
-│ email       │       │ name        │       │ id              │
-│ password_   │       │ event_date  │       │ name            │
-│   digest    │       │ password    │       │ employee_id     │
-│ created_at  │       │ status      │       │ phone           │
-│ updated_at  │       │ allow_      │       │ email           │
-└─────────────┘       │   repeat_   │       │ created_at      │
-                      │   win       │       │ updated_at      │
-                      │ required_   │       └────────┬────────┘
+┌─────────────┐       ┌─────────────┐       ┌───────────────────┐
+│   Admin     │       │    Event    │       │   Participant     │
+├─────────────┤       ├─────────────┤       ├───────────────────┤
+│ id          │       │ id          │       │ id                │
+│ email       │       │ name        │       │ name              │
+│ password_   │       │ event_date  │       │ employee_id (UQ)  │
+│   digest    │       │ password    │       │ phone (UQ)        │
+│ created_at  │       │ status      │       │ email (UQ)        │
+│ updated_at  │       │ allow_      │       │ created_at        │
+└─────────────┘       │   repeat_   │       │ updated_at        │
+                      │   win       │       └────────┬──────────┘
+                      │ required_   │                │
                       │   fields    │                │
                       │ created_at  │                │
                       │ updated_at  │                │
@@ -26,33 +27,34 @@
                              │ 1:N                   │
                              ▼                       │
                       ┌─────────────┐                │
-                      │    Prize    │                │
-                      ├─────────────┤                │
-                      │ id          │                │
-                      │ event_id    │◄───────────────┤
-                      │   (FK)      │                │
-                      │ name        │                │
-                      │ prize_type  │                │
-                      │ value       │                │
-                      │ quantity    │                │
-                      │ taxable     │     ┌──────────┴──────────┐
-                      │ display_    │     │                     │
-                      │   fields    │     │        Winner       │
-                      │ privacy_    │     ├─────────────────────┤
-                      │   settings  │     │ id                  │
-                      │ allow_      │◄────│ prize_id (FK)       │
-                      │   repeat_   │     │ participant_id (FK) │
-                      │   win_      │     │ drawn_at            │
-                      │   override  │     │ distributed         │
-                      │ scheduled_  │     │ distributed_at      │
-                      │   at        │     │ distributed_by      │
-                      │ drawn       │     │ notification_       │
-                      │ drawn_at    │     │   requested         │
-                      │ drawn_by    │     │ created_at          │
-                      │ position    │     │ updated_at          │
-                      │ created_at  │     └─────────────────────┘
-                      │ updated_at  │
-                      └─────────────┘
+                      │    Prize    │     ┌──────────┴──────────┐
+                      ├─────────────┤     │  EventParticipant   │
+                      │ id          │     ├─────────────────────┤
+                      │ event_id    │     │ id                  │
+                      │   (FK)      │     │ event_id (FK)       │
+                      │ name        │     │ participant_id (FK) │
+                      │ prize_type  │     │ created_at          │
+                      │ value       │     │ updated_at          │
+                      │ quantity    │     └──────────┬──────────┘
+                      │ taxable     │                │
+                      │ display_    │                │
+                      │   fields    │                │
+                      │ privacy_    │     ┌──────────┴──────────┐
+                      │   settings  │     │        Winner       │
+                      │ allow_      │     ├─────────────────────┤
+                      │   repeat_   │     │ id                  │
+                      │   win_      │◄────│ prize_id (FK)       │
+                      │   override  │     │ event_participant_  │
+                      │ scheduled_  │     │   id (FK)           │
+                      │   at        │     │ drawn_at            │
+                      │ drawn       │     │ distributed         │
+                      │ drawn_at    │     │ distributed_at      │
+                      │ drawn_by    │     │ distributed_by      │
+                      │ position    │     │ notification_       │
+                      │ created_at  │     │   requested         │
+                      │ updated_at  │     │ created_at          │
+                      └─────────────┘     │ updated_at          │
+                                          └─────────────────────┘
 ```
 
 ## Entities
@@ -103,7 +105,8 @@ enum status: { draft: 0, active: 1, completed: 2 }
 
 **Associations:**
 - has_many :prizes, dependent: :destroy
-- has_many :participants, dependent: :destroy
+- has_many :event_participants, dependent: :destroy
+- has_many :participants, through: :event_participants
 - has_many :winners, through: :prizes
 
 ---
@@ -122,7 +125,7 @@ enum status: { draft: 0, active: 1, completed: 2 }
 | quantity | integer | NOT NULL, DEFAULT: 1 | 中獎名額 |
 | taxable | boolean | NOT NULL, DEFAULT: false | 是否需課稅 |
 | display_fields | json | NOT NULL, DEFAULT: ["name"] | 顯示欄位 |
-| privacy_settings | json | NOT NULL, DEFAULT: {} | 保密設定 |
+| privacy_settings | json | NOT NULL, DEFAULT: {} | 各欄位保密設定 |
 | allow_repeat_win_override | boolean | NULL | 覆蓋活動重複中獎設定 |
 | scheduled_at | datetime | NULL | 排程開獎時間 |
 | drawn | boolean | NOT NULL, DEFAULT: false | 是否已開獎 |
@@ -142,7 +145,7 @@ enum prize_type: { cash: 0, gift: 1 }
 # display_fields: 要顯示的欄位
 ["name", "phone"]  # 或 ["name", "email"]
 
-# privacy_settings: 各欄位的保密設定
+# privacy_settings: 各欄位的保密設定（各欄位可獨立設定）
 {
   "name": true,    # 陳○銘
   "phone": true,   # 0912-XXX-678
@@ -171,50 +174,80 @@ enum prize_type: { cash: 0, gift: 1 }
 
 ---
 
-### 4. Participant (參與者)
+### 4. Participant (參與者) - 全域人員池
 
-可參加抽獎的人員。
+可參加抽獎的人員。**獨立於活動存在，可被加入多個活動。**
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | bigint | PK, auto | 主鍵 |
+| name | string | NOT NULL | 姓名 |
+| employee_id | string | NULL, UNIQUE | 員工編號 |
+| phone | string | NULL, UNIQUE | 手機 |
+| email | string | NULL, UNIQUE | Email |
+| created_at | datetime | NOT NULL | 建立時間 |
+| updated_at | datetime | NOT NULL | 更新時間 |
+
+**Indexes:**
+- `employee_id` - UNIQUE (當不為 NULL 時)
+- `phone` - UNIQUE (當不為 NULL 時)
+- `email` - UNIQUE (當不為 NULL 時)
+
+**Validations:**
+- name: presence
+- employee_id: uniqueness (allow_nil)
+- phone: uniqueness (allow_nil), format
+- email: uniqueness (allow_nil), format (email)
+
+**Associations:**
+- has_many :event_participants, dependent: :destroy
+- has_many :events, through: :event_participants
+- has_many :winners, through: :event_participants
+
+**Note:** 參與者是全域資源，同一個人可以被加入多個不同活動。
+
+---
+
+### 5. EventParticipant (活動參與者關聯)
+
+連結活動與參與者的關聯表。
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | bigint | PK, auto | 主鍵 |
 | event_id | bigint | FK, NOT NULL, INDEX | 所屬活動 |
-| name | string | NULL | 姓名 |
-| employee_id | string | NULL | 員工編號 |
-| phone | string | NULL | 手機 |
-| email | string | NULL | Email |
+| participant_id | bigint | FK, NOT NULL, INDEX | 參與者 |
 | created_at | datetime | NOT NULL | 建立時間 |
 | updated_at | datetime | NOT NULL | 更新時間 |
 
 **Indexes:**
-- `(event_id, employee_id)` - UNIQUE (when employee_id is required)
-- `(event_id, phone)` - UNIQUE (when phone is required)
-- `(event_id, email)` - UNIQUE (when email is required)
-
-**Note:** 唯一性約束依據 Event 的 required_fields 動態決定，在 model 層驗證。
+- `(event_id, participant_id)` - UNIQUE
 
 **Validations:**
-- 動態驗證必填欄位（依 event.required_fields）
-- 動態驗證唯一性（依 event.required_fields 組合）
+- event_id: presence
+- participant_id: presence
+- uniqueness: { scope: [:event_id, :participant_id] }
 
 **Associations:**
 - belongs_to :event
+- belongs_to :participant
 - has_many :winners, dependent: :destroy
 
 **Scopes:**
 - `eligible_for(prize)` - 根據獎項設定過濾可抽選的參與者
+- `not_won_in_event` - 尚未在該活動中獎的參與者
 
 ---
 
-### 5. Winner (中獎記錄)
+### 6. Winner (中獎記錄)
 
-連結獎項與參與者的中獎記錄。
+連結獎項與活動參與者的中獎記錄。
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | bigint | PK, auto | 主鍵 |
 | prize_id | bigint | FK, NOT NULL, INDEX | 所屬獎項 |
-| participant_id | bigint | FK, NOT NULL, INDEX | 中獎者 |
+| event_participant_id | bigint | FK, NOT NULL, INDEX | 活動參與者 |
 | drawn_at | datetime | NOT NULL | 中獎時間 |
 | distributed | boolean | NOT NULL, DEFAULT: false | 是否已發放 |
 | distributed_at | datetime | NULL | 發放時間 |
@@ -224,16 +257,17 @@ enum prize_type: { cash: 0, gift: 1 }
 | updated_at | datetime | NOT NULL | 更新時間 |
 
 **Indexes:**
-- `(prize_id, participant_id)` - UNIQUE
+- `(prize_id, event_participant_id)` - UNIQUE
 
 **Validations:**
 - prize_id: presence
-- participant_id: presence
-- uniqueness: { scope: [:prize_id, :participant_id] }
+- event_participant_id: presence
+- uniqueness: { scope: [:prize_id, :event_participant_id] }
 
 **Associations:**
 - belongs_to :prize
-- belongs_to :participant
+- belongs_to :event_participant
+- has_one :participant, through: :event_participant
 - belongs_to :distributor, class_name: 'Admin', optional: true
 
 **Scopes:**
@@ -256,6 +290,8 @@ enum prize_type: { cash: 0, gift: 1 }
      │                           │
      ▼                           ▼
   全部欄位可編輯              部分欄位可編輯
+
+  前台：顯示 404             前台：可正常存取
 ```
 
 ### Prize Draw Status
@@ -277,9 +313,10 @@ enum prize_type: { cash: 0, gift: 1 }
 
 1. `create_admins` - 管理者表
 2. `create_events` - 活動表
-3. `create_prizes` - 獎項表 (depends on events, admins)
-4. `create_participants` - 參與者表 (depends on events)
-5. `create_winners` - 中獎記錄表 (depends on prizes, participants, admins)
+3. `create_participants` - 參與者表（全域，不依賴 events）
+4. `create_event_participants` - 活動參與者關聯表 (depends on events, participants)
+5. `create_prizes` - 獎項表 (depends on events, admins)
+6. `create_winners` - 中獎記錄表 (depends on prizes, event_participants, admins)
 
 ---
 
@@ -289,12 +326,44 @@ enum prize_type: { cash: 0, gift: 1 }
 |-------|-------|------|---------|
 | admins | email | UNIQUE | 登入查詢 |
 | events | status | INDEX | 狀態過濾 |
+| participants | employee_id | UNIQUE | 全域唯一識別 |
+| participants | phone | UNIQUE | 全域唯一識別 |
+| participants | email | UNIQUE | 全域唯一識別 |
+| event_participants | event_id | INDEX | 活動參與者查詢 |
+| event_participants | participant_id | INDEX | 參與者活動查詢 |
+| event_participants | (event_id, participant_id) | UNIQUE | 防止重複加入 |
 | prizes | event_id | INDEX | 活動獎項查詢 |
 | prizes | (event_id, drawn) | INDEX | 未開獎項查詢 |
-| participants | event_id | INDEX | 活動參與者查詢 |
-| participants | (event_id, employee_id) | INDEX | 員工登入查詢 |
-| participants | (event_id, phone) | INDEX | 手機登入查詢 |
-| participants | (event_id, email) | INDEX | Email 登入查詢 |
 | winners | prize_id | INDEX | 獎項中獎者查詢 |
-| winners | participant_id | INDEX | 參與者中獎查詢 |
-| winners | (prize_id, participant_id) | UNIQUE | 防止重複中獎記錄 |
+| winners | event_participant_id | INDEX | 參與者中獎查詢 |
+| winners | (prize_id, event_participant_id) | UNIQUE | 防止重複中獎記錄 |
+
+---
+
+## Privacy Settings Detail
+
+獎項的 `privacy_settings` 欄位支援各欄位獨立設定遮罩：
+
+```ruby
+# 範例：完整設定
+{
+  "name": true,     # 王傳華 → 王○華
+  "phone": true,    # 0912345678 → 0912-XXX-678
+  "email": true     # test@example.com → te***@example.com
+}
+
+# 範例：只遮罩姓名
+{
+  "name": true,
+  "phone": false,
+  "email": false
+}
+
+# 範例：無遮罩（完整顯示）
+{}
+```
+
+遮罩規則：
+- **姓名**: `姓 + ○ + 名最後一字`（如：陳○銘）
+- **電話**: `前4碼 + -XXX- + 後3碼`（如：0912-XXX-678）
+- **Email**: `前2字元 + *** + @domain`（如：te***@example.com）

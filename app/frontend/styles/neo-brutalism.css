@@ -1,0 +1,192 @@
+/* Neo-Brutalism Design System for Public-facing Lottery Pages */
+
+:root {
+  /* Primary Colors */
+  --neo-primary: #FF6B6B;
+  --neo-secondary: #4ECDC4;
+  --neo-accent: #FFE66D;
+  --neo-dark: #2C3E50;
+  --neo-light: #F7F7F7;
+
+  /* Shadow offset */
+  --neo-shadow-offset: 4px;
+  --neo-shadow-offset-lg: 8px;
+
+  /* Border width */
+  --neo-border: 3px;
+  --neo-border-thick: 5px;
+}
+
+/* Base Neo-Brutalism Card */
+.neo-card {
+  padding: 1.5rem;
+  background-color: var(--neo-light);
+  border: var(--neo-border) solid var(--neo-dark);
+  box-shadow: var(--neo-shadow-offset) var(--neo-shadow-offset) 0 var(--neo-dark);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.neo-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: calc(var(--neo-shadow-offset) + 2px) calc(var(--neo-shadow-offset) + 2px) 0 var(--neo-dark);
+}
+
+/* Neo-Brutalism Button */
+.neo-btn,
+.neo-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background-color: var(--neo-primary);
+  color: var(--neo-dark);
+  border: var(--neo-border) solid var(--neo-dark);
+  box-shadow: var(--neo-shadow-offset) var(--neo-shadow-offset) 0 var(--neo-dark);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  text-decoration: none;
+}
+
+.neo-btn:hover,
+.neo-button:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: calc(var(--neo-shadow-offset) + 2px) calc(var(--neo-shadow-offset) + 2px) 0 var(--neo-dark);
+}
+
+.neo-btn:active,
+.neo-button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--neo-dark);
+}
+
+.neo-btn-secondary,
+.neo-button-secondary {
+  background-color: var(--neo-secondary);
+}
+
+.neo-btn-accent,
+.neo-button-accent {
+  background-color: var(--neo-accent);
+}
+
+/* Neo-Brutalism Input */
+.neo-input {
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  background-color: white;
+  border: var(--neo-border) solid var(--neo-dark);
+  box-shadow: var(--neo-shadow-offset) var(--neo-shadow-offset) 0 var(--neo-dark);
+  outline: none;
+  transition: box-shadow 0.15s ease;
+}
+
+.neo-input:focus {
+  box-shadow: var(--neo-shadow-offset-lg) var(--neo-shadow-offset-lg) 0 var(--neo-primary);
+}
+
+/* Prize Card for lottery display */
+.neo-prize-card {
+  position: relative;
+  padding: 2rem;
+  background: linear-gradient(135deg, var(--neo-accent) 0%, var(--neo-primary) 100%);
+  border: var(--neo-border-thick) solid var(--neo-dark);
+  box-shadow: var(--neo-shadow-offset-lg) var(--neo-shadow-offset-lg) 0 var(--neo-dark);
+}
+
+.neo-prize-card.drawn {
+  background: linear-gradient(135deg, var(--neo-secondary) 0%, #45B7AA 100%);
+}
+
+/* Winner reveal animation */
+.neo-winner-reveal {
+  animation: winner-pop 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes winner-pop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Draw animation container */
+.neo-draw-animation {
+  position: relative;
+  overflow: hidden;
+}
+
+.neo-draw-animation::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    left: 100%;
+  }
+}
+
+/* Status badge */
+.neo-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border: 2px solid var(--neo-dark);
+  box-shadow: 2px 2px 0 var(--neo-dark);
+}
+
+.neo-badge-success {
+  background-color: var(--neo-secondary);
+}
+
+.neo-badge-warning {
+  background-color: var(--neo-accent);
+}
+
+.neo-badge-danger {
+  background-color: var(--neo-primary);
+}
+
+/* Large display optimizations for projection */
+@media (min-width: 1920px) {
+  :root {
+    --neo-shadow-offset: 6px;
+    --neo-shadow-offset-lg: 12px;
+    --neo-border: 4px;
+    --neo-border-thick: 7px;
+  }
+
+  .neo-prize-card {
+    padding: 3rem;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  :root {
+    --neo-shadow-offset: 3px;
+    --neo-shadow-offset-lg: 6px;
+  }
+
+  .neo-btn {
+    padding: 0.5rem 1rem;
+  }
+}

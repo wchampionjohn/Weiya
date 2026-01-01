@@ -1,0 +1,463 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  AppBar,
+  Toolbar,
+  Typography,
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  IconButton,
+  Avatar,
+  Menu,
+  MenuItem,
+  Divider,
+  Chip,
+  Breadcrumbs,
+  Link,
+  Container,
+  Paper,
+  Button,
+  Alert,
+  Snackbar,
+  CircularProgress,
+} from '@mui/material';
+import {
+  Menu as MenuIcon,
+  Event as EventIcon,
+  EmojiEvents as PrizeIcon,
+  People as PeopleIcon,
+  Casino as DrawIcon,
+  WorkspacePremium as WinnerIcon,
+  Dashboard as DashboardIcon,
+  Logout as LogoutIcon,
+  ArrowBack as ArrowBackIcon,
+  Add as AddIcon,
+  Publish as PublishIcon,
+  Group as GroupIcon,
+  Settings as SettingsIcon,
+} from '@mui/icons-material';
+import { AuthProvider, useAuth } from './AuthContext';
+import LoginPage from './LoginPage';
+import EventList from './EventList';
+import EventForm from './EventForm';
+import PrizeManager from './PrizeManager';
+import ParticipantList from './ParticipantList';
+import ParticipantImport from './ParticipantImport';
+import DrawControl from './DrawControl';
+import WinnerManagement from './WinnerManagement';
+import ParticipantManagement from './ParticipantManagement';
+import { adminApi } from '../../lib/api';
+
+const drawerWidth = 260;
+
+function AdminContent() {
+  const { isAuthenticated, admin, logout, loading } = useAuth();
+  const [view, setView] = useState('list');
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [eventDetails, setEventDetails] = useState(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [activeTab, setActiveTab] = useState('prizes');
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+  useEffect(() => {
+    if (selectedEvent?.id) {
+      loadEventDetails(selectedEvent.id);
+    }
+  }, [selectedEvent?.id]);
+
+  const loadEventDetails = async (eventId) => {
+    try {
+      const response = await adminApi.getEvent(eventId);
+      setEventDetails(response.data);
+    } catch (err) {
+      console.error('載入活動詳情失敗:', err);
+      showSnackbar('載入活動詳情失敗', 'error');
+    }
+  };
+
+  const showSnackbar = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
+
+  const handleMenuOpen = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    handleMenuClose();
+    logout();
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage onLoginSuccess={() => setView('list')} />;
+  }
+
+  const handleEventSelect = (event) => {
+    setSelectedEvent(event);
+    setActiveTab('settings');
+    setView('event');
+  };
+
+  const handleBack = () => {
+    setSelectedEvent(null);
+    setEventDetails(null);
+    setView('list');
+  };
+
+  const handlePublish = async () => {
+    try {
+      await adminApi.publishEvent(selectedEvent.id);
+      await loadEventDetails(selectedEvent.id);
+      showSnackbar('活動已發佈！');
+    } catch (err) {
+      showSnackbar(err.response?.data?.error || '發佈失敗', 'error');
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'draft': return 'default';
+      case 'active': return 'success';
+      case 'completed': return 'info';
+      default: return 'default';
+    }
+  };
+
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'draft': return '草稿';
+      case 'active': return '進行中';
+      case 'completed': return '已完成';
+      default: return status;
+    }
+  };
+
+  const eventTabs = [
+    { id: 'settings', label: '活動設定', icon: <SettingsIcon /> },
+    { id: 'prizes', label: '獎項', icon: <PrizeIcon /> },
+    { id: 'participants', label: '參與者', icon: <PeopleIcon /> },
+    { id: 'draw', label: '抽獎', icon: <DrawIcon /> },
+    { id: 'winners', label: '得獎者', icon: <WinnerIcon /> },
+  ];
+
+  const drawer = (
+    <Box>
+      <Toolbar sx={{ justifyContent: 'center', py: 2 }}>
+        <Typography variant="h5" noWrap component="div" sx={{ fontWeight: 700, color: 'primary.main' }}>
+          抽獎管理系統
+        </Typography>
+      </Toolbar>
+      <Divider />
+      <List sx={{ px: 1 }}>
+        <ListItem disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            selected={view === 'list'}
+            onClick={() => { setView('list'); setSelectedEvent(null); setEventDetails(null); }}
+            sx={{ borderRadius: 2 }}
+          >
+            <ListItemIcon><DashboardIcon /></ListItemIcon>
+            <ListItemText primary="所有活動" />
+          </ListItemButton>
+        </ListItem>
+        <ListItem disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            onClick={() => setView('new')}
+            sx={{ borderRadius: 2 }}
+          >
+            <ListItemIcon><AddIcon /></ListItemIcon>
+            <ListItemText primary="新增活動" />
+          </ListItemButton>
+        </ListItem>
+        <ListItem disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            selected={view === 'participants'}
+            onClick={() => { setView('participants'); setSelectedEvent(null); setEventDetails(null); }}
+            sx={{ borderRadius: 2 }}
+          >
+            <ListItemIcon><GroupIcon /></ListItemIcon>
+            <ListItemText primary="參與者管理" />
+          </ListItemButton>
+        </ListItem>
+      </List>
+
+      {eventDetails && (
+        <>
+          <Divider sx={{ my: 1 }} />
+          <Box sx={{ px: 2, py: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+              目前活動
+            </Typography>
+            <Typography variant="subtitle2" noWrap sx={{ mt: 0.5 }}>
+              {eventDetails.name}
+            </Typography>
+            <Chip
+              size="small"
+              label={getStatusLabel(eventDetails.status)}
+              color={getStatusColor(eventDetails.status)}
+              sx={{ mt: 1 }}
+            />
+          </Box>
+          <List sx={{ px: 1 }}>
+            {eventTabs.map((tab) => (
+              <ListItem key={tab.id} disablePadding sx={{ mb: 0.5 }}>
+                <ListItemButton
+                  selected={view === 'event' && activeTab === tab.id}
+                  onClick={() => { setView('event'); setActiveTab(tab.id); }}
+                  sx={{ borderRadius: 2 }}
+                >
+                  <ListItemIcon>{tab.icon}</ListItemIcon>
+                  <ListItemText primary={tab.label} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </>
+      )}
+    </Box>
+  );
+
+  return (
+    <Box sx={{ display: 'flex' }}>
+      <AppBar
+        position="fixed"
+        sx={{
+          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          ml: { sm: `${drawerWidth}px` },
+          bgcolor: 'background.paper',
+          color: 'text.primary',
+          boxShadow: 1,
+        }}
+      >
+        <Toolbar>
+          <IconButton
+            color="inherit"
+            edge="start"
+            onClick={handleDrawerToggle}
+            sx={{ mr: 2, display: { sm: 'none' } }}
+          >
+            <MenuIcon />
+          </IconButton>
+
+          <Box sx={{ flexGrow: 1 }}>
+            <Breadcrumbs aria-label="breadcrumb">
+              <Link
+                underline="hover"
+                color="inherit"
+                href="#"
+                onClick={(e) => { e.preventDefault(); handleBack(); }}
+              >
+                活動列表
+              </Link>
+              {eventDetails && (
+                <Typography color="text.primary">{eventDetails.name}</Typography>
+              )}
+              {view === 'participants' && !eventDetails && (
+                <Typography color="text.primary">參與者管理</Typography>
+              )}
+            </Breadcrumbs>
+          </Box>
+
+          {eventDetails?.status === 'draft' && (
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<PublishIcon />}
+              onClick={handlePublish}
+              sx={{ mr: 2 }}
+            >
+              發佈活動
+            </Button>
+          )}
+
+          <IconButton onClick={handleMenuOpen} sx={{ p: 0 }}>
+            <Avatar sx={{ bgcolor: 'primary.main' }}>
+              {admin?.email?.[0]?.toUpperCase() || 'A'}
+            </Avatar>
+          </IconButton>
+          <Menu
+            anchorEl={anchorEl}
+            open={Boolean(anchorEl)}
+            onClose={handleMenuClose}
+            onClick={handleMenuClose}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          >
+            <MenuItem disabled>
+              <Typography variant="body2" color="text.secondary">
+                {admin?.email}
+              </Typography>
+            </MenuItem>
+            <Divider />
+            <MenuItem onClick={handleLogout}>
+              <ListItemIcon>
+                <LogoutIcon fontSize="small" />
+              </ListItemIcon>
+              登出
+            </MenuItem>
+          </Menu>
+        </Toolbar>
+      </AppBar>
+
+      <Box
+        component="nav"
+        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
+      >
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={handleDrawerToggle}
+          ModalProps={{ keepMounted: true }}
+          sx={{
+            display: { xs: 'block', sm: 'none' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+          }}
+        >
+          {drawer}
+        </Drawer>
+        <Drawer
+          variant="permanent"
+          sx={{
+            display: { xs: 'none', sm: 'block' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+          }}
+          open
+        >
+          {drawer}
+        </Drawer>
+      </Box>
+
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: 3,
+          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          bgcolor: 'background.default',
+          minHeight: '100vh',
+        }}
+      >
+        <Toolbar />
+
+        {view === 'list' && (
+          <EventList
+            onSelect={handleEventSelect}
+            onNew={() => setView('new')}
+          />
+        )}
+
+        {view === 'new' && (
+          <Paper sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+              <IconButton onClick={() => setView('list')} sx={{ mr: 1 }}>
+                <ArrowBackIcon />
+              </IconButton>
+              <Typography variant="h5">新增活動</Typography>
+            </Box>
+            <EventForm
+              onSave={() => { setView('list'); showSnackbar('活動已建立！'); }}
+              onCancel={() => setView('list')}
+            />
+          </Paper>
+        )}
+
+        {view === 'participants' && (
+          <ParticipantManagement />
+        )}
+
+        {view === 'event' && eventDetails && (
+          <Box>
+            {activeTab === 'settings' && (
+              <Paper sx={{ p: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                  活動設定
+                </Typography>
+                <EventForm
+                  event={eventDetails}
+                  onSave={() => { loadEventDetails(eventDetails.id); showSnackbar('活動設定已更新！'); }}
+                  onCancel={() => setActiveTab('prizes')}
+                />
+              </Paper>
+            )}
+
+            {activeTab === 'prizes' && (
+              <PrizeManager
+                event={eventDetails}
+                prizes={eventDetails.prizes}
+                onUpdate={() => loadEventDetails(eventDetails.id)}
+              />
+            )}
+
+            {activeTab === 'participants' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <ParticipantImport
+                  eventId={eventDetails.id}
+                  onSuccess={() => { loadEventDetails(eventDetails.id); showSnackbar('參與者已匯入！'); }}
+                />
+                <ParticipantList
+                  event={eventDetails}
+                  onUpdate={() => loadEventDetails(eventDetails.id)}
+                />
+              </Box>
+            )}
+
+            {activeTab === 'draw' && (
+              <DrawControl
+                event={eventDetails}
+                prizes={eventDetails.prizes}
+                onUpdate={() => loadEventDetails(eventDetails.id)}
+              />
+            )}
+
+            {activeTab === 'winners' && (
+              <WinnerManagement eventId={eventDetails.id} />
+            )}
+          </Box>
+        )}
+      </Box>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
+}
+
+export default function AdminApp() {
+  return (
+    <AuthProvider>
+      <AdminContent />
+    </AuthProvider>
+  );
+}

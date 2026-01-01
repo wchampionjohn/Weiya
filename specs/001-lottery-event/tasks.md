@@ -2,421 +2,278 @@
 
 **Input**: Design documents from `/specs/001-lottery-event/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/
+**Updated**: 2026-01-01 (重大架構調整)
+
+**重大變更**:
+1. 參與者改為全域實體，透過 EventParticipant 關聯至活動
+2. 前台拆分為多個頁面（首頁、開獎直播、登入、中獎記錄）
+3. 隱私遮罩設定可針對各欄位獨立設定
+4. 介面統一使用繁體中文
+5. 活動未發布時前台顯示 404
 
 **Tests**: 根據專案憲章「測試驅動開發」原則，所有 User Story 包含測試任務。
-
-**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
-- **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
-- Include exact file paths in descriptions
-
-## Path Conventions
-
-Based on plan.md structure:
-- **Backend**: `app/models/`, `app/controllers/api/v1/`, `app/services/`, `app/channels/`
-- **Frontend**: `app/frontend/components/`, `app/frontend/entrypoints/`
-- **Tests**: `spec/models/`, `spec/requests/`, `spec/services/`
-- **Database**: `db/migrate/`
+- **[Story]**: Which user story this task belongs to
 
 ---
 
-## Phase 1: Setup (Shared Infrastructure)
+## Phase 1: 資料庫遷移重構 ✅
 
-**Purpose**: Project initialization and basic structure
+**Purpose**: 重構資料模型以支援參與者跨活動使用
 
-- [ ] T001 Configure Rails API mode and dependencies in Gemfile
-- [ ] T002 [P] Configure Vite and React dependencies in package.json
-- [ ] T003 [P] Setup RuboCop configuration in .rubocop.yml
-- [ ] T004 [P] Setup ESLint configuration in eslint.config.js
-- [ ] T005 [P] Configure Tailwind CSS with Neo-Brutalism custom styles in app/frontend/styles/neo-brutalism.css
-- [ ] T006 [P] Setup Shadcn-ui configuration in app/frontend/lib/shadcn/
-- [ ] T007 [P] Setup MUI theme for admin in app/frontend/styles/admin-theme.js
-- [ ] T008 Configure ActionCable with Solid Cable in config/cable.yml
-- [ ] T009 Configure Solid Queue for background jobs in config/queue.yml
+### 遷移任務
+
+- [X] T001 建立 event_participants 遷移 (新增關聯表) `db/migrate/YYYYMMDDHHMMSS_create_event_participants.rb`
+- [X] T002 修改 participants 表移除 event_id (改為全域) `db/migrate/YYYYMMDDHHMMSS_make_participants_global.rb`
+- [X] T003 修改 winners 表改用 event_participant_id `db/migrate/YYYYMMDDHHMMSS_update_winners_for_event_participants.rb`
+- [X] T004 執行遷移並驗證 schema `rails db:migrate`
 
 ---
 
-## Phase 2: Foundational (Blocking Prerequisites)
+## Phase 2: 模型重構 ✅
 
-**Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented
+**Purpose**: 更新模型以支援新的資料結構
 
-**⚠️ CRITICAL**: No user story work can begin until this phase is complete
+### 模型更新
 
-### Database Migrations
+- [X] T005 [P] 更新 Participant 模型（移除 event 關聯，改為 has_many :event_participants）`app/models/participant.rb`
+- [X] T006 [P] 建立 EventParticipant 模型 `app/models/event_participant.rb`
+- [X] T007 [P] 更新 Event 模型（改用 has_many :participants, through: :event_participants）`app/models/event.rb`
+- [X] T008 [P] 更新 Winner 模型（改用 event_participant_id）`app/models/winner.rb`
+- [X] T009 [P] 更新 Prize 模型（確保 privacy_settings 支援各欄位獨立設定）`app/models/prize.rb`
 
-- [ ] T010 Create admins migration in db/migrate/YYYYMMDDHHMMSS_create_admins.rb
-- [ ] T011 Create events migration in db/migrate/YYYYMMDDHHMMSS_create_events.rb
-- [ ] T012 Create prizes migration in db/migrate/YYYYMMDDHHMMSS_create_prizes.rb
-- [ ] T013 Create participants migration in db/migrate/YYYYMMDDHHMMSS_create_participants.rb
-- [ ] T014 Create winners migration in db/migrate/YYYYMMDDHHMMSS_create_winners.rb
-- [ ] T015 Run migrations and verify schema in db/schema.rb
+### 模型測試
 
-### Base Models
-
-- [ ] T016 [P] Create Admin model with has_secure_password in app/models/admin.rb
-- [ ] T017 [P] Create Event model with status enum in app/models/event.rb
-- [ ] T018 [P] Create Prize model with prize_type enum in app/models/prize.rb
-- [ ] T019 [P] Create Participant model in app/models/participant.rb
-- [ ] T020 [P] Create Winner model in app/models/winner.rb
-
-### Base Infrastructure
-
-- [ ] T021 Setup API v1 routes namespace in config/routes.rb
-- [ ] T022 [P] Create ApplicationController base in app/controllers/application_controller.rb
-- [ ] T023 [P] Create Api::V1::BaseController in app/controllers/api/v1/base_controller.rb
-- [ ] T024 [P] Create ApplicationCable::Connection in app/channels/application_cable/connection.rb
-- [ ] T025 Create seed data with test admin in db/seeds.rb
-
-**Checkpoint**: Foundation ready - user story implementation can now begin in parallel
+- [ ] T010 [P] 更新 Participant 模型測試 `spec/models/participant_spec.rb`
+- [ ] T011 [P] 建立 EventParticipant 模型測試 `spec/models/event_participant_spec.rb`
+- [ ] T012 [P] 更新 Winner 模型測試 `spec/models/winner_spec.rb`
 
 ---
 
-## Phase 3: User Story 6 - 後台管理者登入 (Priority: P2 → Moved to P1)
+## Phase 3: 後台 API 重構 ✅
 
-**Goal**: 管理者必須透過帳號密碼登入後台才能進行活動管理
+**Purpose**: 新增全域參與者管理與活動參與者關聯 API
 
-**Independent Test**: 使用正確帳密登入後台，驗證可以存取管理功能
+### 全域參與者 API
 
-**Note**: 雖然規格為 P2，但登入是後續所有後台功能的前置條件，提升為實作優先
+- [X] T013 [P] 建立 ParticipantsController（全域 CRUD）`app/controllers/api/v1/admin/participants_controller.rb`
+- [ ] T014 [P] 建立全域參與者 API 測試 `spec/requests/api/v1/admin/participants_spec.rb`
 
-### Tests for User Story 6
+### 活動參與者關聯 API
 
-- [ ] T026 [P] [US6] Create Admin model spec in spec/models/admin_spec.rb
-- [ ] T027 [P] [US6] Create sessions controller request spec in spec/requests/api/v1/admin/sessions_spec.rb
+- [X] T015 [P] 建立 EventParticipantsController `app/controllers/api/v1/admin/event_participants_controller.rb`
+- [ ] T016 [P] 建立活動參與者 API 測試 `spec/requests/api/v1/admin/event_participants_spec.rb`
 
-### Implementation for User Story 6
+### 更新匯入服務
 
-- [ ] T028 [US6] Add session timeout check to Api::V1::Admin::BaseController in app/controllers/api/v1/admin/base_controller.rb
-- [ ] T029 [US6] Implement SessionsController (login/logout) in app/controllers/api/v1/admin/sessions_controller.rb
-- [ ] T030 [P] [US6] Create admin login page component in app/frontend/components/admin/LoginPage.jsx
-- [ ] T031 [US6] Setup admin authentication context in app/frontend/components/admin/AuthContext.jsx
+- [X] T017 更新 ParticipantImportService（支援全域匯入或活動匯入）`app/services/participant_import_service.rb`
+- [ ] T018 更新 ParticipantImportService 測試 `spec/services/participant_import_service_spec.rb`
 
-**Checkpoint**: Admin authentication complete - admin features can now be implemented
+### 更新抽獎服務
 
----
-
-## Phase 4: User Story 1 - 後台管理者建立抽獎活動 (Priority: P1) 🎯 MVP
-
-**Goal**: 管理者登入後台後，可以建立一場尾牙抽獎活動，設定活動名稱、日期時間，並新增多個獎項
-
-**Independent Test**: 可透過後台介面建立一場包含至少 3 個獎項的活動，並驗證所有設定都被正確儲存
-
-### Tests for User Story 1
-
-- [ ] T032 [P] [US1] Create Event model spec in spec/models/event_spec.rb
-- [ ] T033 [P] [US1] Create Prize model spec in spec/models/prize_spec.rb
-- [ ] T034 [P] [US1] Create Participant model spec in spec/models/participant_spec.rb
-- [ ] T035 [P] [US1] Create events controller request spec in spec/requests/api/v1/admin/events_spec.rb
-- [ ] T036 [P] [US1] Create prizes controller request spec in spec/requests/api/v1/admin/prizes_spec.rb
-- [ ] T037 [P] [US1] Create participants controller request spec in spec/requests/api/v1/admin/participants_spec.rb
-- [ ] T038 [P] [US1] Create ParticipantImportService spec in spec/services/participant_import_service_spec.rb
-- [ ] T039 [P] [US1] Create PrivacyMaskService spec in spec/services/privacy_mask_service_spec.rb
-
-### Implementation for User Story 1
-
-- [ ] T040 [US1] Implement EventsController (CRUD) in app/controllers/api/v1/admin/events_controller.rb
-- [ ] T041 [US1] Implement PrizesController (CRUD) in app/controllers/api/v1/admin/prizes_controller.rb
-- [ ] T042 [US1] Implement ParticipantsController (CRUD + import) in app/controllers/api/v1/admin/participants_controller.rb
-- [ ] T043 [US1] Implement ParticipantImportService in app/services/participant_import_service.rb
-- [ ] T044 [US1] Implement PrivacyMaskService in app/services/privacy_mask_service.rb
-- [ ] T045 [P] [US1] Create EventList component in app/frontend/components/admin/EventList.jsx
-- [ ] T046 [P] [US1] Create EventForm component in app/frontend/components/admin/EventForm.jsx
-- [ ] T047 [P] [US1] Create PrizeManager component in app/frontend/components/admin/PrizeManager.jsx
-- [ ] T048 [P] [US1] Create PrizeForm component in app/frontend/components/admin/PrizeForm.jsx
-- [ ] T049 [P] [US1] Create ParticipantList component in app/frontend/components/admin/ParticipantList.jsx
-- [ ] T050 [US1] Create ParticipantImport component in app/frontend/components/admin/ParticipantImport.jsx
-- [ ] T051 [US1] Create PrivacyPreview component in app/frontend/components/admin/PrivacyPreview.jsx
-- [ ] T052 [US1] Setup admin routing in app/frontend/entrypoints/admin.jsx
-
-**Checkpoint**: Event and prize management complete - can create full lottery events
+- [X] T019 更新 DrawService（使用 event_participant_id）`app/services/draw_service.rb`
+- [ ] T020 更新 DrawService 測試 `spec/services/draw_service_spec.rb`
 
 ---
 
-## Phase 5: User Story 2 - 後台管理者執行開獎 (Priority: P1)
+## Phase 4: 隱私遮罩功能完善 ✅
 
-**Goal**: 管理者可以選擇手動開獎或依照預設時間表自動開獎
+**Purpose**: 確保隱私遮罩功能可針對各欄位獨立設定
 
-**Independent Test**: 建立一個有參與者的活動，執行開獎後驗證中獎結果正確產生
+### 服務更新
 
-### Tests for User Story 2
+- [X] T021 完善 PrivacyMaskService（支援各欄位獨立設定）`app/services/privacy_mask_service.rb`
+- [ ] T022 更新 PrivacyMaskService 測試 `spec/services/privacy_mask_service_spec.rb`
 
-- [ ] T053 [P] [US2] Create Winner model spec in spec/models/winner_spec.rb
-- [ ] T054 [P] [US2] Create DrawService spec in spec/services/draw_service_spec.rb
-- [ ] T055 [P] [US2] Create draws controller request spec in spec/requests/api/v1/admin/draws_spec.rb
-- [ ] T056 [P] [US2] Create ScheduledDrawJob spec in spec/jobs/scheduled_draw_job_spec.rb
+### 後台獎項設定 UI
 
-### Implementation for User Story 2
-
-- [ ] T057 [US2] Implement DrawService with SecureRandom in app/services/draw_service.rb
-- [ ] T058 [US2] Implement DrawsController (execute draw) in app/controllers/api/v1/admin/draws_controller.rb
-- [ ] T059 [US2] Implement ScheduledDrawJob in app/jobs/scheduled_draw_job.rb
-- [ ] T060 [US2] Add scheduled_at callback to Prize model in app/models/prize.rb
-- [ ] T061 [P] [US2] Create DrawControl component in app/frontend/components/admin/DrawControl.jsx
-- [ ] T062 [US2] Create DrawConfirmDialog component in app/frontend/components/admin/DrawConfirmDialog.jsx
-- [ ] T063 [US2] Create DrawResultDisplay component in app/frontend/components/admin/DrawResultDisplay.jsx
-
-**Checkpoint**: Manual and scheduled drawing complete - lottery functionality operational
+- [X] T023 更新 PrizeForm 支援隱私設定（各欄位獨立開關）`app/frontend/components/admin/PrizeForm.jsx`
+- [X] T024 建立 PrivacySettingsEditor 元件（整合於 PrizeForm）
 
 ---
 
-## Phase 6: User Story 3 - 前台即時顯示開獎結果 (Priority: P1)
+## Phase 5: 前台路由重構 ✅
 
-**Goal**: 前台畫面即時顯示當前開獎狀態與中獎結果
+**Purpose**: 將前台拆分為多個清晰的頁面
 
-**Independent Test**: 開啟前台頁面，當後台執行開獎時，驗證前台即時更新顯示結果
+### 路由設定
 
-### Tests for User Story 3
+- [X] T025 更新前台路由配置 `config/routes.rb`
+- [X] T026 更新前台 React Router 配置 `app/frontend/entrypoints/application.jsx`
 
-- [ ] T064 [P] [US3] Create DrawChannel spec in spec/channels/draw_channel_spec.rb
-- [ ] T065 [P] [US3] Create public events controller request spec in spec/requests/api/v1/public/events_spec.rb
-- [ ] T066 [P] [US3] Create public winners controller request spec in spec/requests/api/v1/public/winners_spec.rb
+### 頁面元件
 
-### Implementation for User Story 3
+- [X] T027 [P] 建立 WelcomePage（活動首頁/登入入口）`app/frontend/components/event/WelcomePage.tsx`
+- [X] T028 [P] 建立 OverviewPage（活動總覽頁）`app/frontend/components/event/OverviewPage.tsx`
+- [X] T029 [P] 建立 LiveDrawPage（開獎直播頁含進度）`app/frontend/components/event/LiveDrawPage.tsx`
+- [X] T030 [P] 建立 ResultsPage（中獎記錄頁）`app/frontend/components/event/ResultsPage.tsx`
+- [X] T031 [P] 建立 LoginPage（個人中獎查詢）`app/frontend/components/event/LoginPage.tsx`
+- [X] T032 [P] 建立 NotFoundPage（404 錯誤頁）（整合於 PasswordGate）
+- [X] T033 更新 EventApp 路由配置 `app/frontend/components/event/EventApp.tsx`
 
-- [ ] T067 [US3] Implement DrawChannel for WebSocket in app/channels/draw_channel.rb
-- [ ] T068 [US3] Add ActionCable broadcasts to DrawService in app/services/draw_service.rb
-- [ ] T069 [US3] Implement Public::EventsController in app/controllers/api/v1/public/events_controller.rb
-- [ ] T070 [US3] Implement Public::WinnersController in app/controllers/api/v1/public/winners_controller.rb
-- [ ] T071 [US3] Create useDrawChannel hook in app/frontend/lib/useDrawChannel.js
-- [ ] T072 [US3] Create DrawContext provider in app/frontend/components/public/DrawContext.jsx
-- [ ] T073 [P] [US3] Create EventPage component (Neo-Brutalism) in app/frontend/components/public/EventPage.jsx
-- [ ] T074 [P] [US3] Create PrizeCard component in app/frontend/components/public/PrizeCard.jsx
-- [ ] T075 [P] [US3] Create WinnerDisplay component in app/frontend/components/public/WinnerDisplay.jsx
-- [ ] T076 [US3] Create DrawAnimation component in app/frontend/components/public/DrawAnimation.jsx
-- [ ] T077 [US3] Create WinnerReveal animation component in app/frontend/components/public/WinnerReveal.jsx
-- [ ] T078 [US3] Setup public routing in app/frontend/entrypoints/application.jsx
+### 前台 API 更新
 
-**Checkpoint**: Real-time display complete - MVP ready for demo
+- [X] T034 更新 Public::EventsController（草稿返回 404）`app/controllers/api/v1/public/events_controller.rb`
+- [ ] T035 更新公開活動 API 測試 `spec/requests/api/v1/public/events_spec.rb`
+- [X] T036 更新 Public::SessionsController（改用活動限定 session）`app/controllers/api/v1/public/sessions_controller.rb`
 
 ---
 
-## Phase 7: User Story 4 - 員工查詢個人中獎結果 (Priority: P2)
+## Phase 6: 後台 UI 重構 ✅
 
-**Goal**: 員工可選擇性登入前台查看自己是否中獎
+**Purpose**: 更新後台以支援全域參與者管理
 
-**Independent Test**: 以員工身份登入，驗證可以看到個人專屬的中獎狀態
+### 參與者管理
 
-### Tests for User Story 4
+- [X] T037 建立全域 ParticipantManagement 頁面 `app/frontend/components/admin/ParticipantManagement.jsx`
+- [X] T038 建立 ParticipantForm 元件（整合於 ParticipantManagement）
+- [X] T039 建立 ParticipantSelector 元件（整合於 ParticipantList）
 
-- [ ] T079 [P] [US4] Create public sessions controller request spec in spec/requests/api/v1/public/sessions_spec.rb
+### 活動參與者管理
 
-### Implementation for User Story 4
+- [X] T040 建立 EventParticipantList 元件（整合於 ParticipantList）
+- [X] T041 更新 EventForm 移除參與者直接新增（改用選擇器）`app/frontend/components/admin/EventForm.jsx`
 
-- [ ] T080 [US4] Implement Public::SessionsController (participant login) in app/controllers/api/v1/public/sessions_controller.rb
-- [ ] T081 [P] [US4] Create ParticipantLogin component in app/frontend/components/public/ParticipantLogin.jsx
-- [ ] T082 [US4] Create ParticipantContext provider in app/frontend/components/public/ParticipantContext.jsx
-- [ ] T083 [US4] Create PersonalResult component in app/frontend/components/public/PersonalResult.jsx
-- [ ] T084 [US4] Integrate participant login with EventPage in app/frontend/components/public/EventPage.jsx
+### 後台導航更新
 
-**Checkpoint**: Participant query complete - employees can check personal results
+- [X] T042 更新 AdminApp 導航（新增參與者管理入口）`app/frontend/components/admin/AdminApp.jsx`
 
----
+### 活動網址顯示
 
-## Phase 8: User Story 5 - 後台管理獎項發放狀態 (Priority: P2)
-
-**Goal**: 管理者可在後台查看所有中獎記錄，勾選標記獎項是否已發放
-
-**Independent Test**: 開獎後，在後台將一個獎項標記為已發放，驗證狀態正確更新
-
-### Tests for User Story 5
-
-- [ ] T085 [P] [US5] Create winners controller request spec in spec/requests/api/v1/admin/winners_spec.rb
-
-### Implementation for User Story 5
-
-- [ ] T086 [US5] Implement WinnersController (list + update) in app/controllers/api/v1/admin/winners_controller.rb
-- [ ] T087 [P] [US5] Create WinnerManagement component in app/frontend/components/admin/WinnerManagement.jsx
-- [ ] T088 [US5] Create WinnerTable component with MUI DataGrid in app/frontend/components/admin/WinnerTable.jsx
-- [ ] T089 [US5] Create DistributionToggle component in app/frontend/components/admin/DistributionToggle.jsx
-- [ ] T090 [US5] Create NotificationButton component (placeholder) in app/frontend/components/admin/NotificationButton.jsx
-
-**Checkpoint**: Distribution tracking complete - full admin functionality available
+- [X] T042a 更新 EventForm 顯示活動公開網址（含複製功能）`app/frontend/components/admin/EventForm.jsx`
 
 ---
 
-## Phase 9: User Story 7 - 前台活動密碼驗證 (Priority: P3)
+## Phase 7: 介面中文化 ✅
 
-**Goal**: 前台可設定活動密碼，訪客需輸入正確密碼才能進入
+**Purpose**: 統一全系統使用繁體中文
 
-**Independent Test**: 設定活動密碼後，驗證需要輸入正確密碼才能進入前台
+### 後台中文化
 
-### Tests for User Story 7
+- [X] T043 [P] 建立中文語系檔（直接內嵌於元件）
+- [X] T044 [P] 更新 LoginPage 中文化 `app/frontend/components/admin/LoginPage.jsx`
+- [X] T045 [P] 更新 EventList 中文化 `app/frontend/components/admin/EventList.jsx`
+- [X] T046 [P] 更新 EventForm 中文化 `app/frontend/components/admin/EventForm.jsx`
+- [X] T047 [P] 更新 PrizeManager 中文化 `app/frontend/components/admin/PrizeManager.jsx`
+- [X] T048 [P] 更新 ParticipantList 中文化 `app/frontend/components/admin/ParticipantList.jsx`
+- [X] T049 [P] 更新 DrawControl 中文化 `app/frontend/components/admin/DrawControl.jsx`
+- [X] T050 [P] 更新 WinnerManagement 中文化 `app/frontend/components/admin/WinnerManagement.jsx`
 
-- [ ] T091 [P] [US7] Create event password verification request spec in spec/requests/api/v1/public/events_verify_spec.rb
+### 前台中文化
 
-### Implementation for User Story 7
+- [X] T051 [P] 更新所有前台元件中文化 `app/frontend/components/event/*.tsx`
 
-- [ ] T092 [US7] Add verify action to Public::EventsController in app/controllers/api/v1/public/events_controller.rb
-- [ ] T093 [P] [US7] Create PasswordGate component in app/frontend/components/public/PasswordGate.jsx
-- [ ] T094 [US7] Integrate password verification with EventPage in app/frontend/components/public/EventPage.jsx
-- [ ] T095 [US7] Add password token storage in app/frontend/lib/sessionStorage.js
+### API 錯誤訊息中文化
 
-**Checkpoint**: Password protection complete - all user stories implemented
+- [ ] T052 更新 API 錯誤訊息為中文 `app/controllers/concerns/error_handler.rb`
 
 ---
 
-## Phase 10: Polish & Cross-Cutting Concerns
+## Phase 8: Seed 資料擴充 ✅
 
-**Purpose**: Improvements that affect multiple user stories
+**Purpose**: 提供更豐富的測試資料
 
-- [ ] T096 [P] Update seeds with comprehensive test data in db/seeds.rb
-- [ ] T097 [P] Add request logging middleware in app/middleware/request_logger.rb
-- [ ] T098 [P] Create API error handling concern in app/controllers/concerns/error_handler.rb
-- [ ] T099 Code cleanup and remove unused imports
-- [ ] T100 Run RuboCop and fix any violations
-- [ ] T101 Run ESLint and fix any violations
-- [ ] T102 Run full test suite and verify all specs pass
-- [ ] T103 Run quickstart.md validation scenarios
-- [ ] T104 Performance test: Verify 500 concurrent WebSocket connections
+### Seed 資料
+
+- [X] T053 更新 seeds.rb（更多測試資料）`db/seeds.rb`
+  - 建立 100 位全域參與者
+  - 建立 3 個活動（草稿、進行中、已完成各一）
+  - 進行中活動有 10 個獎項
+  - 已完成活動有中獎記錄
+  - 參與者跨活動使用
+
+---
+
+## Phase 9: Favicon 設計 ✅
+
+**Purpose**: 新增網站 favicon
+
+### Favicon
+
+- [X] T054 設計並建立 favicon.ico `public/favicon.ico`
+- [X] T055 建立 favicon.svg `public/icon.svg`
+- [X] T056 更新 HTML head 引用 favicon `app/views/layouts/application.html.erb`
+- [X] T057 更新 admin layout 引用 favicon `app/views/layouts/admin.html.erb`
+
+---
+
+## Phase 10: 測試與驗證
+
+**Purpose**: 確保所有功能正常運作
+
+### 測試
+
+- [ ] T058 執行完整測試套件 `bundle exec rspec`
+- [ ] T059 驗證前台路由功能（各頁面可正常切換）
+- [ ] T060 驗證隱私遮罩功能（各欄位獨立設定）
+- [ ] T061 驗證參與者跨活動使用功能
+- [ ] T062 驗證草稿活動返回 404
 
 ---
 
 ## Dependencies & Execution Order
 
-### Phase Dependencies
+### 必須按順序執行
 
-- **Setup (Phase 1)**: No dependencies - can start immediately
-- **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS all user stories
-- **User Story 6 (Phase 3)**: Depends on Foundational - Authentication prerequisite for admin features
-- **User Story 1 (Phase 4)**: Depends on US6 - Event management needs auth
-- **User Story 2 (Phase 5)**: Depends on US1 - Drawing needs events and participants
-- **User Story 3 (Phase 6)**: Depends on US2 - Display needs drawing functionality
-- **User Story 4 (Phase 7)**: Depends on US3 - Personal query needs public display
-- **User Story 5 (Phase 8)**: Depends on US2 - Distribution needs winners
-- **User Story 7 (Phase 9)**: Depends on US3 - Password gate needs public display
-- **Polish (Phase 10)**: Depends on all user stories being complete
+1. **Phase 1: 資料庫遷移重構** - ✅ 已完成
+2. **Phase 2: 模型重構** - ✅ 已完成
+3. **Phase 3: 後台 API 重構** - ✅ 已完成
+4. **Phase 4: 隱私遮罩功能完善** - ✅ 已完成
+5. **Phase 5: 前台路由重構** - ✅ 已完成
+6. **Phase 6: 後台 UI 重構** - ✅ 已完成
+7. **Phase 7: 介面中文化** - ✅ 已完成
+8. **Phase 8: Seed 資料擴充** - ✅ 已完成
+9. **Phase 9: Favicon 設計** - ✅ 已完成
+10. **Phase 10: 測試與驗證** - 待執行
 
-### User Story Dependencies Graph
+### 可並行執行
 
 ```
-              ┌─────────────────────────────────────────┐
-              │         Phase 1: Setup                  │
-              └────────────────┬────────────────────────┘
-                               │
-              ┌────────────────▼────────────────────────┐
-              │      Phase 2: Foundational              │
-              └────────────────┬────────────────────────┘
-                               │
-              ┌────────────────▼────────────────────────┐
-              │    Phase 3: US6 (Admin Login)           │
-              └────────────────┬────────────────────────┘
-                               │
-              ┌────────────────▼────────────────────────┐
-              │    Phase 4: US1 (Event Management)      │
-              │                🎯 MVP Start              │
-              └────────────────┬────────────────────────┘
-                               │
-              ┌────────────────▼────────────────────────┐
-              │    Phase 5: US2 (Execute Draw)          │
-              └───────┬────────────────────┬────────────┘
-                      │                    │
-       ┌──────────────▼──────┐    ┌────────▼─────────────┐
-       │ Phase 6: US3        │    │ Phase 8: US5         │
-       │ (Real-time Display) │    │ (Distribution)       │
-       └──────┬──────────────┘    └──────────────────────┘
-              │
-       ┌──────▼──────────────┐
-       │ Phase 7: US4        │
-       │ (Personal Query)    │
-       └──────┬──────────────┘
-              │
-       ┌──────▼──────────────┐
-       │ Phase 9: US7        │
-       │ (Password Gate)     │
-       └─────────────────────┘
-```
+Phase 1 (遷移) ✅
+    │
+    ▼
+Phase 2 (模型) ✅
+    │
+    ├──────────────┬──────────────┐
+    ▼              ▼              ▼
+Phase 3 ✅     Phase 4 ✅     Phase 8 ✅
+(API)      (隱私遮罩 UI)    (Seed)
+    │              │
+    ├──────────────┤
+    ▼              ▼
+Phase 5 ✅     Phase 6 ✅
+(前台路由)   (後台 UI)
+    │              │
+    └──────┬───────┘
+           ▼
+      Phase 7 ✅
+     (中文化)
+           │
+           ▼
+      Phase 10
+      (測試)
 
-### Within Each User Story
-
-- Tests MUST be written and FAIL before implementation
-- Models before services
-- Services before controllers
-- Backend before frontend
-- Core implementation before integration
-
-### Parallel Opportunities
-
-- **Phase 1**: T002, T003, T004, T005, T006, T007 can run in parallel
-- **Phase 2**: T016-T020 (models) can run in parallel; T022-T024 can run in parallel
-- **Phase 3**: T026, T027 (tests) in parallel; T030 (frontend) parallel with backend
-- **Phase 4**: All tests (T032-T039) in parallel; Frontend components (T045-T051) in parallel
-- **Phase 5**: All tests (T053-T056) in parallel; T061 parallel with backend
-- **Phase 6**: All tests (T064-T066) in parallel; T073-T075 in parallel
-- **Phase 7**: T081 parallel with backend
-- **Phase 8**: T087 parallel with backend
-- **Phase 9**: T093 parallel with backend
-
----
-
-## Parallel Example: User Story 1 (Phase 4)
-
-```bash
-# Launch all tests for User Story 1 together:
-Task: "Create Event model spec in spec/models/event_spec.rb"
-Task: "Create Prize model spec in spec/models/prize_spec.rb"
-Task: "Create Participant model spec in spec/models/participant_spec.rb"
-Task: "Create events controller request spec in spec/requests/api/v1/admin/events_spec.rb"
-Task: "Create prizes controller request spec in spec/requests/api/v1/admin/prizes_spec.rb"
-Task: "Create participants controller request spec in spec/requests/api/v1/admin/participants_spec.rb"
-Task: "Create ParticipantImportService spec in spec/services/participant_import_service_spec.rb"
-Task: "Create PrivacyMaskService spec in spec/services/privacy_mask_service_spec.rb"
-
-# After tests written, launch frontend components in parallel:
-Task: "Create EventList component in app/frontend/components/admin/EventList.jsx"
-Task: "Create EventForm component in app/frontend/components/admin/EventForm.jsx"
-Task: "Create PrizeManager component in app/frontend/components/admin/PrizeManager.jsx"
-Task: "Create PrizeForm component in app/frontend/components/admin/PrizeForm.jsx"
-Task: "Create ParticipantList component in app/frontend/components/admin/ParticipantList.jsx"
+Phase 9 (Favicon) ✅ - 可隨時執行
 ```
 
 ---
 
-## Implementation Strategy
+## 任務總數
 
-### MVP First (User Stories 1-3 + US6)
+- Phase 1: 4 tasks ✅
+- Phase 2: 8 tasks (5 ✅ + 3 待測試)
+- Phase 3: 8 tasks (4 ✅ + 4 待測試)
+- Phase 4: 4 tasks ✅
+- Phase 5: 12 tasks (11 ✅ + 1 待測試)
+- Phase 6: 7 tasks ✅
+- Phase 7: 10 tasks (9 ✅ + 1 待 API)
+- Phase 8: 1 task ✅
+- Phase 9: 4 tasks ✅
+- Phase 10: 5 tasks (待執行)
 
-1. Complete Phase 1: Setup
-2. Complete Phase 2: Foundational (CRITICAL - blocks all stories)
-3. Complete Phase 3: User Story 6 (Admin Login)
-4. Complete Phase 4: User Story 1 (Event Management)
-5. Complete Phase 5: User Story 2 (Execute Draw)
-6. Complete Phase 6: User Story 3 (Real-time Display)
-7. **STOP and VALIDATE**: Test MVP independently with quickstart.md
-8. Deploy/demo if ready
-
-### Incremental Delivery
-
-1. Setup + Foundational + US6 → Admin authentication ready
-2. Add US1 → Event management ready → Demo admin CRUD
-3. Add US2 → Drawing functionality ready → Demo lottery execution
-4. Add US3 → Real-time display ready → **Full MVP Demo!**
-5. Add US4 → Personal query ready → Enhanced participant experience
-6. Add US5 → Distribution tracking ready → Full admin functionality
-7. Add US7 → Password protection ready → Enterprise-ready
-
-### Suggested MVP Scope
-
-**Minimum Viable Product includes:**
-- Phase 1: Setup
-- Phase 2: Foundational
-- Phase 3: US6 (Admin Login)
-- Phase 4: US1 (Event Management)
-- Phase 5: US2 (Execute Draw)
-- Phase 6: US3 (Real-time Display)
-
-**Total MVP Tasks**: 78 tasks (T001 - T078)
-
----
-
-## Notes
-
-- [P] tasks = different files, no dependencies
-- [Story] label maps task to specific user story for traceability
-- Each user story should be independently completable and testable
-- Verify tests fail before implementing (TDD per constitution)
-- Commit after each task or logical group
-- Stop at any checkpoint to validate story independently
-- Frontend uses Shadcn-ui + Neo-Brutalism for public, MUI for admin (per design.md)
+**Total: 63 tasks**
+**Completed: ~53 tasks**
+**Remaining: ~10 tasks (主要為測試任務)**
