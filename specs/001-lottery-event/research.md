@@ -306,7 +306,7 @@ end
 
 ---
 
-## Summary
+## Summary (Phase 1)
 
 所有技術決策皆符合專案憲章的三大原則：
 
@@ -314,4 +314,252 @@ end
 2. **測試驅動**: 所有 Service Object 可獨立測試
 3. **程式碼品質**: 遵循 Rails 慣例、使用 Service Object 分離邏輯
 
-無需進一步釐清，可進入 Phase 1 設計階段。
+---
+
+# Phase 2 Research
+
+**Date**: 2026-01-02
+**Feature**: 001-lottery-event (Phase 2)
+
+## 9. 加碼獎項排序策略
+
+### Decision: 插入式排序（最新開獎進度後）
+
+### Rationale
+- 加碼獎項自然接續開獎流程，符合活動進行邏輯
+- 使用 `position` 欄位動態計算插入位置
+- 前台即時更新透過 ActionCable 廣播新獎項
+
+### Implementation Pattern
+```ruby
+# Prize model
+def insert_after_latest_drawn
+  latest_drawn = event.prizes.drawn.order(drawn_at: :desc).first
+  if latest_drawn
+    self.position = latest_drawn.position + 1
+    # Shift subsequent undrawn prizes
+    event.prizes.undrawn.where('position >= ?', self.position).update_all('position = position + 1')
+  else
+    self.position = event.prizes.maximum(:position).to_i + 1
+  end
+end
+```
+
+---
+
+## 10. 年資計算機制
+
+### Decision: 以活動日期為基準計算
+
+### Rationale
+- 同一場活動的年資判斷標準一致
+- 避免開獎時間差異導致資格變動
+- 儲存 `hire_date`，計算屬性 `seniority_years`
+
+### Implementation Pattern
+```ruby
+# Participant model
+def seniority_years_for(event)
+  return nil unless hire_date
+  ((event.event_date.to_date - hire_date) / 365.25).floor
+end
+
+# Prize eligibility_rules JSON
+{
+  "min_seniority_years": 3,
+  "departments": ["Engineering", "Sales"]
+}
+```
+
+---
+
+## 11. 指定中獎人機制
+
+### Decision: Prize 層級設定，DrawService 優先處理
+
+### Rationale
+- 指定中獎人是獎項屬性，設定在 Prize model
+- DrawService 執行時優先檢查是否有指定中獎人
+- Winner 記錄標記 `is_designated` 但對外不顯示
+
+### Implementation Pattern
+```ruby
+# DrawService
+def execute
+  if prize.designated_participant_id.present?
+    event_participant = EventParticipant.find_by!(
+      event: prize.event,
+      participant_id: prize.designated_participant_id
+    )
+    create_winner(event_participant, is_designated: true)
+  else
+    random_draw
+  end
+end
+```
+
+---
+
+## 12. 批次發放機制
+
+### Decision: Bulk update with individual timestamps
+
+### Rationale
+- 使用 ActiveRecord `update_all` 效能較好
+- 但每筆記錄需要獨立的發放時間
+- 使用 Transaction 確保資料一致性
+
+### Implementation Pattern
+```ruby
+# WinnerBatchDistributeService
+def distribute(winner_ids, admin)
+  Winner.transaction do
+    winners = Winner.where(id: winner_ids, distributed: false)
+    winners.find_each do |winner|
+      winner.update!(
+        distributed: true,
+        distributed_at: Time.current,
+        distributed_by: admin.id
+      )
+    end
+  end
+end
+```
+
+---
+
+## 13. 活動複製機制
+
+### Decision: Deep copy with selective associations
+
+### Rationale
+- 複製活動設定、獎項設定（不含開獎記錄）
+- 可選擇是否複製參與者關聯
+- 新活動為草稿狀態
+
+### Implementation Pattern
+```ruby
+# EventCopyService
+def copy(source_event, options = {})
+  new_event = source_event.dup
+  new_event.name = "#{source_event.name} (複製)"
+  new_event.status = :draft
+  new_event.event_date = options[:event_date] || Date.tomorrow
+
+  Event.transaction do
+    new_event.save!
+
+    # Copy prizes (without draw status)
+    source_event.prizes.each do |prize|
+      new_prize = prize.dup
+      new_prize.event = new_event
+      new_prize.drawn = false
+      new_prize.drawn_at = nil
+      new_prize.drawn_by = nil
+      new_prize.save!
+    end
+
+    # Optionally copy participants
+    if options[:copy_participants]
+      source_event.event_participants.each do |ep|
+        EventParticipant.create!(
+          event: new_event,
+          participant_id: ep.participant_id
+        )
+      end
+    end
+  end
+
+  new_event
+end
+```
+
+---
+
+## 14. 通知模板變數替換
+
+### Decision: Simple string interpolation with predefined variables
+
+### Rationale
+- 支援 `{name}`, `{prize}`, `{value}` 等變數
+- 使用 Ruby 字串 gsub 替換
+- 不使用複雜模板引擎（符合簡單優先原則）
+
+### Implementation Pattern
+```ruby
+# NotificationTemplateService
+ALLOWED_VARIABLES = %w[name prize value event_name].freeze
+
+def render(template, winner)
+  result = template.dup
+  {
+    'name' => winner.participant.name,
+    'prize' => winner.prize.name,
+    'value' => winner.prize.value.to_s,
+    'event_name' => winner.prize.event.name
+  }.each do |var, value|
+    result.gsub!("{#{var}}", value)
+  end
+  result
+end
+
+def preview(template, sample_data = {})
+  result = template.dup
+  ALLOWED_VARIABLES.each do |var|
+    result.gsub!("{#{var}}", sample_data[var] || "[#{var}]")
+  end
+  result
+end
+```
+
+---
+
+## 15. 資格條件篩選機制
+
+### Decision: Composable scope chain
+
+### Rationale
+- 使用 Rails scope 組合篩選條件
+- eligibility_rules JSON 儲存在 Prize
+- DrawService 動態組合 scope
+
+### Implementation Pattern
+```ruby
+# EventParticipant model
+scope :with_min_seniority, ->(event, years) {
+  joins(:participant)
+    .where('participants.hire_date <= ?', event.event_date - years.years)
+}
+
+scope :in_departments, ->(departments) {
+  joins(:participant)
+    .where(participants: { department: departments })
+}
+
+scope :eligible_for, ->(prize) {
+  scope = all
+  rules = prize.eligibility_rules || {}
+
+  if rules['min_seniority_years'].present?
+    scope = scope.with_min_seniority(prize.event, rules['min_seniority_years'])
+  end
+
+  if rules['departments'].present?
+    scope = scope.in_departments(rules['departments'])
+  end
+
+  scope
+}
+```
+
+---
+
+## Summary (Phase 2)
+
+Phase 2 技術決策延續 Phase 1 原則：
+
+1. **簡單優先**: 使用簡單字串替換（模板）、ActiveRecord scopes（篩選）
+2. **測試驅動**: 新服務（EventCopyService、NotificationTemplateService）可獨立測試
+3. **程式碼品質**: 遵循 Rails 慣例、Service Object 模式
+
+所有 Phase 2 功能可基於現有架構實作，無需引入新依賴。

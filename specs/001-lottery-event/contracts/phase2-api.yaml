@@ -1,0 +1,501 @@
+openapi: 3.0.3
+info:
+  title: Lottery Admin API - Phase 2 Extensions
+  version: 2.0.0
+  description: 尾牙抽獎活動 Phase 2 新增 API（2026-01-02）
+
+servers:
+  - url: /api/v1/admin
+    description: Admin API namespace
+
+tags:
+  - name: Events
+    description: 活動管理 - Phase 2 擴充
+  - name: Prizes
+    description: 獎項管理 - Phase 2 擴充
+  - name: Winners
+    description: 中獎者管理 - Phase 2 擴充
+  - name: Participants
+    description: 參與者管理 - Phase 2 擴充
+
+paths:
+  # === 活動複製 ===
+  /events/{id}/copy:
+    post:
+      tags: [Events]
+      summary: 複製活動
+      description: 從現有活動複製設定建立新活動
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: 新活動名稱（預設為「原名稱 (複製)」）
+                event_date:
+                  type: string
+                  format: date-time
+                  description: 新活動日期
+                copy_participants:
+                  type: boolean
+                  default: false
+                  description: 是否複製參與者名單
+                copy_prizes:
+                  type: boolean
+                  default: true
+                  description: 是否複製獎項設定
+      responses:
+        '201':
+          description: 複製成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '404':
+          description: 來源活動不存在
+
+  # === 通知模板預覽 ===
+  /events/{id}/preview_notification:
+    post:
+      tags: [Events]
+      summary: 預覽通知模板
+      description: 使用範例資料預覽通知模板替換結果
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                template_type:
+                  type: string
+                  enum: [sms, email]
+                sample_data:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      example: 王小明
+                    prize:
+                      type: string
+                      example: 頭獎
+                    value:
+                      type: string
+                      example: "10000"
+      responses:
+        '200':
+          description: 預覽結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preview:
+                    type: string
+                    description: 替換變數後的內容
+
+  # === 加碼獎項 ===
+  /events/{event_id}/prizes/bonus:
+    post:
+      tags: [Prizes]
+      summary: 新增加碼獎項
+      description: 在活動進行中新增加碼獎項（自動插入在最新開獎進度後）
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prize:
+                  $ref: '#/components/schemas/BonusPrizeInput'
+      responses:
+        '201':
+          description: 新增成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prize'
+        '403':
+          description: 活動非進行中狀態
+        '422':
+          description: 驗證失敗
+
+  # === 指定中獎人 ===
+  /prizes/{id}/designate:
+    post:
+      tags: [Prizes]
+      summary: 指定中獎人
+      description: 為獎項指定中獎人（開獎時直接成為中獎者）
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [participant_id]
+              properties:
+                participant_id:
+                  type: integer
+                  description: 指定的參與者 ID
+      responses:
+        '200':
+          description: 指定成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prize'
+        '403':
+          description: 獎項已開獎
+        '404':
+          description: 獎項或參與者不存在
+
+    delete:
+      tags: [Prizes]
+      summary: 取消指定中獎人
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 取消成功
+        '403':
+          description: 獎項已開獎
+
+  # === 資格條件 ===
+  /prizes/{id}/eligibility:
+    put:
+      tags: [Prizes]
+      summary: 設定參與資格條件
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EligibilityRules'
+      responses:
+        '200':
+          description: 設定成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prize'
+        '403':
+          description: 獎項已開獎
+
+  /prizes/{id}/eligible_participants:
+    get:
+      tags: [Prizes]
+      summary: 取得符合資格的參與者
+      description: 根據獎項資格條件篩選可抽選的參與者
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 符合資格的參與者列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  participants:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Participant'
+
+  # === 批次發放 ===
+  /winners/batch_distribute:
+    post:
+      tags: [Winners]
+      summary: 批次發放
+      description: 批次標記多筆中獎記錄為已發放
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [winner_ids]
+              properties:
+                winner_ids:
+                  type: array
+                  items:
+                    type: integer
+                  description: 要發放的中獎記錄 ID 列表
+      responses:
+        '200':
+          description: 發放結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  distributed_count:
+                    type: integer
+                    description: 成功發放的數量
+                  skipped_count:
+                    type: integer
+                    description: 略過的數量（已發放）
+                  winners:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Winner'
+
+  # === 參與者年資部門 ===
+  /participants/{id}:
+    patch:
+      tags: [Participants]
+      summary: 更新參與者（含年資部門）
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParticipantUpdateInput'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Participant'
+
+  /participants/import:
+    post:
+      tags: [Participants]
+      summary: 匯入參與者（支援年資部門）
+      description: CSV 匯入參與者，支援 hire_date 和 department 欄位
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                event_id:
+                  type: integer
+                  description: 可選，匯入後自動加入指定活動
+      responses:
+        '200':
+          description: 匯入結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported_count:
+                    type: integer
+                  updated_count:
+                    type: integer
+                  errors:
+                    type: array
+                    items:
+                      type: string
+
+components:
+  schemas:
+    Event:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        event_date:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [draft, active, completed]
+        sms_template:
+          type: string
+          nullable: true
+        email_template:
+          type: string
+          nullable: true
+        copied_from_event_id:
+          type: integer
+          nullable: true
+
+    Prize:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        prize_type:
+          type: string
+          enum: [cash, gift]
+        value:
+          type: number
+        quantity:
+          type: integer
+        is_bonus:
+          type: boolean
+        scheduled_at:
+          type: string
+          format: date-time
+          nullable: true
+        eligibility_rules:
+          $ref: '#/components/schemas/EligibilityRules'
+        designated_participant_id:
+          type: integer
+          nullable: true
+        designated_participant:
+          $ref: '#/components/schemas/Participant'
+        drawn:
+          type: boolean
+
+    BonusPrizeInput:
+      type: object
+      required: [name, prize_type, value, quantity]
+      properties:
+        name:
+          type: string
+        prize_type:
+          type: string
+          enum: [cash, gift]
+        value:
+          type: number
+        quantity:
+          type: integer
+        display_fields:
+          type: array
+          items:
+            type: string
+        privacy_settings:
+          type: object
+        allow_repeat_win_override:
+          type: boolean
+          nullable: true
+
+    EligibilityRules:
+      type: object
+      properties:
+        min_seniority_years:
+          type: integer
+          nullable: true
+          description: 最低年資要求（年）
+        departments:
+          type: array
+          items:
+            type: string
+          description: 限定部門（空陣列表示不限）
+
+    Participant:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        employee_id:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        hire_date:
+          type: string
+          format: date
+          nullable: true
+        department:
+          type: string
+          nullable: true
+        seniority_years:
+          type: integer
+          nullable: true
+          description: 計算後的年資（基於活動日期）
+
+    ParticipantUpdateInput:
+      type: object
+      properties:
+        name:
+          type: string
+        employee_id:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        hire_date:
+          type: string
+          format: date
+        department:
+          type: string
+
+    Winner:
+      type: object
+      properties:
+        id:
+          type: integer
+        prize_id:
+          type: integer
+        event_participant_id:
+          type: integer
+        drawn_at:
+          type: string
+          format: date-time
+        distributed:
+          type: boolean
+        distributed_at:
+          type: string
+          format: date-time
+          nullable: true
+        participant:
+          $ref: '#/components/schemas/Participant'

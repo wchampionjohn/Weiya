@@ -1,79 +1,43 @@
-# Implementation Plan: 尾牙抽獎活動系統
+# Implementation Plan: 尾牙抽獎活動系統 (Phase 2)
 
-**Branch**: `001-lottery-event` | **Date**: 2026-01-01 | **Spec**: [spec.md](./spec.md)
+**Branch**: `001-lottery-event` | **Date**: 2026-01-02 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/001-lottery-event/spec.md`
+**Phase**: Phase 2 - 進階功能擴充
 
 ## Summary
 
-建立完整的尾牙抽獎活動系統，包含：
-- **後台管理**：活動建立、獎項管理、參與者匯入、開獎執行、發放追蹤
-- **前台展示**：即時開獎顯示、中獎者資訊（含隱私遮罩）、個人中獎查詢
-- **技術方案**：Rails API + React SPA，使用 ActionCable 實現即時同步
+Phase 2 為現有抽獎系統新增進階功能：
+- 臨時加碼獎項（活動進行中即時新增）
+- 參與者年資與部門欄位（支援資格條件篩選）
+- 獎項排程顯示（前台時程表）
+- 指定中獎人功能（後台預設得獎者）
+- 批次發放功能（提升作業效率）
+- 通知模板設定（簡訊/Email 範本）
+- 快速建立活動（從過去活動複製）
 
 ## Technical Context
 
 **Language/Version**: Ruby 3.4.1 / Rails 8.0.2.1 (Backend), TypeScript / React 19.x (Frontend)
 **Primary Dependencies**: Rails (API mode), React 19, Vite 5, Tailwind CSS 3, ActionCable (WebSocket)
-**Storage**: PostgreSQL (production), SQLite (development/test)
-**Testing**: RSpec + FactoryBot + Shoulda-matchers (Backend), Jest (Frontend)
-**Target Platform**: Web application (modern browsers)
-**Project Type**: Web application (Rails + React SPA)
-**Performance Goals**:
-- 開獎結果在 2 秒內同步至所有前台
-- 支援 500 位同時連線觀眾
-**Constraints**:
-- 即時性要求（WebSocket）
-- 隱私資料遮罩處理
-- Session-based 認證（後台 2 小時 timeout）
-**Scale/Scope**:
-- 單場活動 500 參與者
-- 每場活動最多 50 個獎項
-- 預估同時 10 場活動
+**Storage**: SQLite 3 (development/production)
+**Testing**: RSpec (Rails), Vitest (optional for Frontend)
+**Target Platform**: Web application (desktop browser + 投影大螢幕)
+**Project Type**: Web application (monorepo: Rails API + React SPA)
+**Performance Goals**: 500 concurrent WebSocket connections, <2s result sync
+**Constraints**: 繁體中文 UI, 隱私遮罩, 無外部通知服務整合
+**Scale/Scope**: ~500 participants per event, ~10 prizes, ~100 winners
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-### 原則 I. 簡單優先 ✅
+| Principle | Status | Evidence |
+|-----------|--------|----------|
+| I. 簡單優先 | ✅ PASS | 使用 Rails 內建功能，不引入新依賴 |
+| II. 測試驅動開發 | ✅ PASS | 所有 User Story 包含測試任務 |
+| III. 程式碼品質 | ✅ PASS | 遵循 Rails 慣例、Service Object 模式 |
 
-| 檢查項目 | 狀態 | 說明 |
-|---------|------|------|
-| YAGNI 強制執行 | ✅ | 第一階段不實作通知發送，僅保留介面 |
-| 最小依賴 | ✅ | 使用 Rails 內建功能（ActionCable、Session） |
-| 避免過早優化 | ✅ | 500 人規模無需特殊快取 |
-| 清晰優於巧妙 | ✅ | 使用 Service Object 封裝業務邏輯 |
-| 直接解決方案 | ✅ | 無過度抽象層 |
-
-### 原則 II. 測試驅動開發 ✅
-
-| 檢查項目 | 狀態 | 說明 |
-|---------|------|------|
-| 先寫測試 | ✅ | Model、Service、Request specs 已建立 |
-| 紅-綠-重構 | ✅ | 遵循 TDD 流程 |
-| 覆蓋率要求 | ✅ | 核心功能（抽獎、隱私遮罩）有完整測試 |
-| 測試隔離 | ✅ | 使用 FactoryBot + DatabaseCleaner |
-| 快速回饋 | ✅ | 104 個測試在 2 秒內完成 |
-
-### 原則 III. 程式碼品質 ✅
-
-| 檢查項目 | 狀態 | 說明 |
-|---------|------|------|
-| Rails 慣例 | ✅ | Service Objects、Strong Parameters |
-| React 模式 | ✅ | 函數式元件、Hooks、Context |
-| 一致的風格 | ✅ | RuboCop 規則（已停用部分過嚴規則） |
-| 有意義的命名 | ✅ | 中英文對應清晰（Event, Prize, Participant, Winner） |
-| DRY 原則 | ✅ | 共用元件（PrivacyMaskService） |
-
-### 技術標準檢查 ✅
-
-| 標準 | 狀態 | 說明 |
-|------|------|------|
-| Service Object | ✅ | DrawService, PrivacyMaskService, ParticipantImportService |
-| ActiveRecord scope | ✅ | Event.active, Prize.undrawn |
-| Strong Parameters | ✅ | 所有 Controller 使用 |
-| 函數式元件 | ✅ | 無 Class 元件 |
-| Tailwind 優先 | ✅ | 前台使用 Neo-Brutalism 風格 |
-| 後台使用 MUI | ✅ | Material UI 元件庫 |
+**Gate Result**: PASS - 可進入 Phase 0
 
 ## Project Structure
 
@@ -81,15 +45,12 @@
 
 ```text
 specs/001-lottery-event/
-├── plan.md              # This file
-├── spec.md              # Feature specification
-├── research.md          # Phase 0 output
-├── data-model.md        # Phase 1 output
-├── quickstart.md        # Phase 1 output
-├── contracts/           # Phase 1 output (API contracts)
-│   ├── admin-api.yaml   # Admin API OpenAPI spec
-│   └── public-api.yaml  # Public API OpenAPI spec
-└── tasks.md             # Phase 2 output
+├── plan.md              # This file (Phase 2 update)
+├── research.md          # Phase 1 + Phase 2 research
+├── data-model.md        # Phase 1 + Phase 2 entity updates
+├── quickstart.md        # Integration scenarios
+├── contracts/           # API contracts
+└── tasks.md             # Implementation tasks (Phase 2 TBD)
 ```
 
 ### Source Code (repository root)
@@ -98,70 +59,61 @@ specs/001-lottery-event/
 app/
 ├── controllers/
 │   └── api/v1/
-│       ├── admin/           # Admin API controllers
-│       │   ├── base_controller.rb
-│       │   ├── sessions_controller.rb
+│       ├── admin/           # 後台 API
 │       │   ├── events_controller.rb
 │       │   ├── prizes_controller.rb
 │       │   ├── participants_controller.rb
+│       │   ├── event_participants_controller.rb
 │       │   ├── draws_controller.rb
 │       │   └── winners_controller.rb
-│       └── public/          # Public API controllers
+│       └── public/          # 前台 API
 │           ├── events_controller.rb
-│           ├── sessions_controller.rb
-│           └── winners_controller.rb
+│           ├── winners_controller.rb
+│           └── sessions_controller.rb
 ├── models/
 │   ├── admin.rb
 │   ├── event.rb
 │   ├── prize.rb
-│   ├── participant.rb
-│   └── winner.rb
+│   ├── participant.rb        # Phase 2: +hire_date, +department
+│   ├── event_participant.rb
+│   └── winner.rb             # Phase 2: +is_designated
 ├── services/
-│   ├── draw_service.rb
+│   ├── draw_service.rb       # Phase 2: 支援指定中獎人
 │   ├── privacy_mask_service.rb
-│   └── participant_import_service.rb
+│   ├── participant_import_service.rb  # Phase 2: 支援年資/部門欄位
+│   └── event_copy_service.rb          # Phase 2: 新增
 ├── channels/
 │   └── draw_channel.rb
-├── jobs/
-│   └── scheduled_draw_job.rb
 └── frontend/
-    ├── entrypoints/
-    │   ├── application.jsx
-    │   └── admin.jsx
     ├── components/
-    │   ├── admin/           # Admin SPA (MUI)
-    │   │   ├── AdminApp.jsx
-    │   │   ├── AuthContext.jsx
-    │   │   ├── LoginPage.jsx
-    │   │   ├── EventList.jsx
-    │   │   ├── EventForm.jsx
-    │   │   ├── PrizeManager.jsx
-    │   │   ├── ParticipantList.jsx
-    │   │   ├── ParticipantImport.jsx
-    │   │   ├── DrawControl.jsx
-    │   │   └── WinnerManagement.jsx
-    │   └── public/          # Public SPA (Neo-Brutalism)
-    │       ├── EventPage.jsx
-    │       ├── PrizeCard.jsx
-    │       ├── WinnerDisplay.jsx
-    │       ├── DrawAnimation.jsx
-    │       └── PasswordGate.jsx
-    └── lib/
-        ├── api.js
-        └── theme.js
+    │   ├── admin/           # 後台元件
+    │   │   ├── EventForm.jsx      # Phase 2: 複製活動功能
+    │   │   ├── PrizeForm.jsx      # Phase 2: 指定中獎人
+    │   │   ├── WinnerManagement.jsx  # Phase 2: 批次發放
+    │   │   └── NotificationTemplateEditor.jsx  # Phase 2: 新增
+    │   └── event/           # 前台元件
+    │       ├── LiveDrawPage.tsx
+    │       ├── ScheduleDisplay.tsx   # Phase 2: 時程表
+    │       └── ResultsPage.tsx
+    └── entrypoints/
+        ├── application.jsx
+        └── admin.jsx
 
 spec/
 ├── models/
-├── services/
-├── requests/api/v1/
-│   ├── admin/
-│   └── public/
-├── jobs/
-└── factories/
+├── requests/
+│   └── api/v1/
+│       ├── admin/
+│       └── public/
+└── services/
 ```
 
-**Structure Decision**: Rails 標準結構 + Vite 前端整合，後台與前台分離為獨立 SPA。
+**Structure Decision**: 延續 Phase 1 結構，新增 Phase 2 相關元件與服務。
 
 ## Complexity Tracking
 
-> 無違規需要說明。所有設計決策符合憲章原則。
+> 無違規需要記錄
+
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+|-----------|------------|-------------------------------------|
+| (none) | - | - |

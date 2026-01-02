@@ -2,7 +2,7 @@
 
 **Date**: 2026-01-01
 **Feature**: 001-lottery-event
-**Updated**: 2026-01-01 (重構參與者模型支援跨活動使用)
+**Updated**: 2026-01-02 (Phase 2: 年資、部門、指定中獎人、通知模板等)
 
 ## Entity Relationship Diagram
 
@@ -90,6 +90,9 @@
 | status | integer | NOT NULL, DEFAULT: 0 | 狀態 enum |
 | allow_repeat_win | boolean | NOT NULL, DEFAULT: false | 是否允許重複中獎 |
 | required_fields | json | NOT NULL, DEFAULT: [] | 參與者必填欄位 |
+| sms_template | text | NULL | 簡訊通知模板 **(Phase 2)** |
+| email_template | text | NULL | Email 通知模板 **(Phase 2)** |
+| copied_from_event_id | bigint | FK, NULL | 複製來源活動 **(Phase 2)** |
 | created_at | datetime | NOT NULL | 建立時間 |
 | updated_at | datetime | NOT NULL | 更新時間 |
 
@@ -108,6 +111,7 @@ enum status: { draft: 0, active: 1, completed: 2 }
 - has_many :event_participants, dependent: :destroy
 - has_many :participants, through: :event_participants
 - has_many :winners, through: :prizes
+- belongs_to :copied_from_event, class_name: 'Event', optional: true **(Phase 2)**
 
 ---
 
@@ -128,6 +132,9 @@ enum status: { draft: 0, active: 1, completed: 2 }
 | privacy_settings | json | NOT NULL, DEFAULT: {} | 各欄位保密設定 |
 | allow_repeat_win_override | boolean | NULL | 覆蓋活動重複中獎設定 |
 | scheduled_at | datetime | NULL | 排程開獎時間 |
+| eligibility_rules | json | NULL | 參與資格條件 **(Phase 2)** |
+| designated_participant_id | bigint | FK, NULL | 指定中獎人 **(Phase 2)** |
+| is_bonus | boolean | NOT NULL, DEFAULT: false | 是否為加碼獎項 **(Phase 2)** |
 | drawn | boolean | NOT NULL, DEFAULT: false | 是否已開獎 |
 | drawn_at | datetime | NULL | 開獎時間 |
 | drawn_by | bigint | FK, NULL | 開獎管理者 |
@@ -151,6 +158,12 @@ enum prize_type: { cash: 0, gift: 1 }
   "phone": true,   # 0912-XXX-678
   "email": false   # 完整顯示
 }
+
+# eligibility_rules: 參與資格條件 (Phase 2)
+{
+  "min_seniority_years": 3,        # 最低年資要求
+  "departments": ["工程部", "業務部"]  # 限定部門（空陣列表示不限）
+}
 ```
 
 **Validations:**
@@ -165,12 +178,15 @@ enum prize_type: { cash: 0, gift: 1 }
 **Associations:**
 - belongs_to :event
 - belongs_to :drawer, class_name: 'Admin', optional: true
+- belongs_to :designated_participant, class_name: 'Participant', optional: true **(Phase 2)**
 - has_many :winners, dependent: :destroy
 
 **Scopes:**
 - `undrawn` - where(drawn: false)
 - `drawn` - where(drawn: true)
 - `ordered` - order(:position)
+- `bonus` - where(is_bonus: true) **(Phase 2)**
+- `regular` - where(is_bonus: false) **(Phase 2)**
 
 ---
 
@@ -185,6 +201,8 @@ enum prize_type: { cash: 0, gift: 1 }
 | employee_id | string | NULL, UNIQUE | 員工編號 |
 | phone | string | NULL, UNIQUE | 手機 |
 | email | string | NULL, UNIQUE | Email |
+| hire_date | date | NULL | 入職日期 **(Phase 2)** |
+| department | string | NULL | 部門 **(Phase 2)** |
 | created_at | datetime | NOT NULL | 建立時間 |
 | updated_at | datetime | NOT NULL | 更新時間 |
 
@@ -192,6 +210,7 @@ enum prize_type: { cash: 0, gift: 1 }
 - `employee_id` - UNIQUE (當不為 NULL 時)
 - `phone` - UNIQUE (當不為 NULL 時)
 - `email` - UNIQUE (當不為 NULL 時)
+- `department` - INDEX **(Phase 2)**
 
 **Validations:**
 - name: presence
@@ -203,6 +222,15 @@ enum prize_type: { cash: 0, gift: 1 }
 - has_many :event_participants, dependent: :destroy
 - has_many :events, through: :event_participants
 - has_many :winners, through: :event_participants
+- has_many :designated_prizes, class_name: 'Prize', foreign_key: 'designated_participant_id' **(Phase 2)**
+
+**Methods (Phase 2):**
+```ruby
+def seniority_years_for(event)
+  return nil unless hire_date
+  ((event.event_date.to_date - hire_date) / 365.25).floor
+end
+```
 
 **Note:** 參與者是全域資源，同一個人可以被加入多個不同活動。
 
@@ -236,6 +264,8 @@ enum prize_type: { cash: 0, gift: 1 }
 **Scopes:**
 - `eligible_for(prize)` - 根據獎項設定過濾可抽選的參與者
 - `not_won_in_event` - 尚未在該活動中獎的參與者
+- `with_min_seniority(event, years)` - 符合最低年資要求 **(Phase 2)**
+- `in_departments(departments)` - 屬於指定部門 **(Phase 2)**
 
 ---
 
@@ -253,6 +283,7 @@ enum prize_type: { cash: 0, gift: 1 }
 | distributed_at | datetime | NULL | 發放時間 |
 | distributed_by | bigint | FK, NULL | 發放管理者 |
 | notification_requested | boolean | NOT NULL, DEFAULT: false | 是否已請求通知 |
+| is_designated | boolean | NOT NULL, DEFAULT: false | 是否為指定中獎 **(Phase 2)** |
 | created_at | datetime | NOT NULL | 建立時間 |
 | updated_at | datetime | NOT NULL | 更新時間 |
 
@@ -367,3 +398,23 @@ enum prize_type: { cash: 0, gift: 1 }
 - **姓名**: `姓 + ○ + 名最後一字`（如：陳○銘）
 - **電話**: `前4碼 + -XXX- + 後3碼`（如：0912-XXX-678）
 - **Email**: `前2字元 + *** + @domain`（如：te***@example.com）
+
+---
+
+## Phase 2 Migration Order
+
+1. `add_phase2_fields_to_participants` - 新增 hire_date, department
+2. `add_phase2_fields_to_events` - 新增 sms_template, email_template, copied_from_event_id
+3. `add_phase2_fields_to_prizes` - 新增 eligibility_rules, designated_participant_id, is_bonus
+4. `add_phase2_fields_to_winners` - 新增 is_designated
+
+---
+
+## Phase 2 Indexes Summary
+
+| Table | Index | Type | Purpose |
+|-------|-------|------|---------|
+| participants | department | INDEX | 部門篩選 |
+| prizes | designated_participant_id | INDEX | 指定中獎人查詢 |
+| prizes | is_bonus | INDEX | 加碼獎項篩選 |
+| events | copied_from_event_id | INDEX | 複製來源追蹤 |
