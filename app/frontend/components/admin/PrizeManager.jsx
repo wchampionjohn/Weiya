@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -10,13 +11,13 @@ import {
   ListItem,
   ListItemText,
   Chip,
-  Collapse,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogContentText,
   DialogActions,
   Alert,
+  Tooltip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -24,6 +25,8 @@ import {
   Delete as DeleteIcon,
   EmojiEvents as TrophyIcon,
   DragIndicator as DragIcon,
+  FilterList as FilterIcon,
+  Person as PersonIcon,
 } from '@mui/icons-material';
 import {
   DndContext,
@@ -60,6 +63,13 @@ function SortablePrizeItem({ prize, index, onEdit, onDelete, isDraft, formatCurr
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const canEdit = isDraft && !prize.drawn;
+  const hasEligibilityRules = prize.eligibility_rules && (
+    (prize.eligibility_rules.min_seniority_years && prize.eligibility_rules.min_seniority_years > 0) ||
+    (prize.eligibility_rules.departments && prize.eligibility_rules.departments.length > 0)
+  );
+  const hasDesignatedWinners = prize.designated_participant_ids && prize.designated_participant_ids.length > 0;
+
   return (
     <ListItem
       ref={setNodeRef}
@@ -72,16 +82,29 @@ function SortablePrizeItem({ prize, index, onEdit, onDelete, isDraft, formatCurr
         mb: 1,
       }}
       secondaryAction={
-        !prize.drawn && isDraft && (
-          <Box>
-            <IconButton size="small" color="primary" onClick={() => onEdit(prize)}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Tooltip title={canEdit ? '編輯' : '查看'}>
+            <IconButton
+              size="small"
+              color="primary"
+              onClick={() => onEdit(prize)}
+            >
               <EditIcon fontSize="small" />
             </IconButton>
-            <IconButton size="small" color="error" onClick={() => onDelete(prize)}>
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Box>
-        )
+          </Tooltip>
+          <Tooltip title={canEdit ? '刪除' : (prize.drawn ? '已抽出無法刪除' : '非草稿狀態無法刪除')}>
+            <span>
+              <IconButton
+                size="small"
+                color="error"
+                onClick={() => onDelete(prize)}
+                disabled={!canEdit}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
       }
     >
       {isDraft && !prize.drawn && (
@@ -115,8 +138,17 @@ function SortablePrizeItem({ prize, index, onEdit, onDelete, isDraft, formatCurr
         primary={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="subtitle2">{prize.name}</Typography>
+            {prize.is_bonus && (
+              <Chip size="small" label="加碼" color="warning" sx={{ height: 20 }} />
+            )}
             {prize.drawn && (
               <Chip size="small" label="已抽出" color="success" sx={{ height: 20 }} />
+            )}
+            {hasEligibilityRules && (
+              <Chip size="small" icon={<FilterIcon sx={{ fontSize: 14 }} />} label="條件" color="info" variant="outlined" sx={{ height: 20 }} />
+            )}
+            {hasDesignatedWinners && (
+              <Chip size="small" icon={<PersonIcon sx={{ fontSize: 14 }} />} label="指定" color="warning" variant="outlined" sx={{ height: 20 }} />
             )}
           </Box>
         }
@@ -130,15 +162,18 @@ function SortablePrizeItem({ prize, index, onEdit, onDelete, isDraft, formatCurr
   );
 }
 
-export default function PrizeManager({ event, prizes, onUpdate }) {
-  const [showForm, setShowForm] = useState(false);
-  const [editingPrize, setEditingPrize] = useState(null);
+export default function PrizeManager({ event, prizes, onUpdate, editPrizeId, isNewPrize, showSnackbar }) {
+  const navigate = useNavigate();
   const [deleteDialog, setDeleteDialog] = useState({ open: false, prize: null });
   const [sortedPrizes, setSortedPrizes] = useState([]);
   const [isSorting, setIsSorting] = useState(false);
 
+  // Determine dialog state from URL
+  const isDialogOpen = !!editPrizeId || isNewPrize;
+  const editingPrize = editPrizeId ? prizes?.find(p => p.id === parseInt(editPrizeId)) : null;
+
   // Sync sortedPrizes with prizes prop
-  React.useEffect(() => {
+  useEffect(() => {
     if (prizes) {
       setSortedPrizes([...prizes].sort((a, b) => a.position - b.position));
     }
@@ -198,12 +233,28 @@ export default function PrizeManager({ event, prizes, onUpdate }) {
   };
 
   const handleSave = () => {
-    setShowForm(false);
-    setEditingPrize(null);
+    navigate(`/admin/events/${event.id}/prizes`);
     onUpdate?.();
+    showSnackbar?.(editPrizeId ? '獎項已更新！' : '獎項已新增！');
   };
 
-  const prizeTypeLabel = (type) => type === 'cash' ? '現金' : '禮品';
+  const handleDialogClose = () => {
+    navigate(`/admin/events/${event.id}/prizes`);
+  };
+
+  const handleEditClick = (prize) => {
+    navigate(`/admin/events/${event.id}/prizes/${prize.id}/edit`);
+  };
+
+  const handleNewClick = () => {
+    navigate(`/admin/events/${event.id}/prizes/new`);
+  };
+
+  const isDraft = event.status === 'draft';
+
+  const prizeTypeLabel = (prizeType) => prizeType?.name || (prizeType?.code === 'cash' ? '現金' : '禮品');
+
+  const canEditPrize = (prize) => isDraft && prize && !prize.drawn;
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('zh-TW', {
@@ -212,8 +263,6 @@ export default function PrizeManager({ event, prizes, onUpdate }) {
       minimumFractionDigits: 0,
     }).format(value);
   };
-
-  const isDraft = event.status === 'draft';
 
   return (
     <Card>
@@ -227,31 +276,14 @@ export default function PrizeManager({ event, prizes, onUpdate }) {
             color="success"
             startIcon={<AddIcon />}
             size="small"
-            onClick={() => setShowForm(true)}
-            disabled={event.status !== 'draft'}
+            onClick={handleNewClick}
+            disabled={!isDraft}
           >
             新增獎項
           </Button>
         </Box>
 
-        <Collapse in={showForm || !!editingPrize}>
-          <Card variant="outlined" sx={{ mb: 3, bgcolor: 'grey.50' }}>
-            <CardContent>
-              <Typography variant="subtitle2" gutterBottom>
-                {editingPrize ? '編輯獎項' : '新增獎項'}
-              </Typography>
-              <PrizeForm
-                eventId={event.id}
-                prize={editingPrize}
-                nextPosition={(prizes?.length || 0) + 1}
-                onSave={handleSave}
-                onCancel={() => { setShowForm(false); setEditingPrize(null); }}
-              />
-            </CardContent>
-          </Card>
-        </Collapse>
-
-        {(!prizes || prizes.length === 0) && !showForm ? (
+        {(!prizes || prizes.length === 0) ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <TrophyIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
             <Typography color="text.secondary">
@@ -280,7 +312,7 @@ export default function PrizeManager({ event, prizes, onUpdate }) {
                       key={prize.id}
                       prize={prize}
                       index={index}
-                      onEdit={setEditingPrize}
+                      onEdit={handleEditClick}
                       onDelete={handleDeleteClick}
                       isDraft={isDraft}
                       formatCurrency={formatCurrency}
@@ -312,6 +344,30 @@ export default function PrizeManager({ event, prizes, onUpdate }) {
             刪除
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Edit/New Prize Dialog */}
+      <Dialog
+        open={isDialogOpen}
+        onClose={handleDialogClose}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          {isNewPrize ? '新增獎項' : (canEditPrize(editingPrize) ? '編輯獎項' : '查看獎項')}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            <PrizeForm
+              eventId={event.id}
+              prize={editingPrize}
+              nextPosition={(prizes?.length || 0) + 1}
+              onSave={handleSave}
+              onCancel={handleDialogClose}
+              readOnly={editingPrize && !canEditPrize(editingPrize)}
+            />
+          </Box>
+        </DialogContent>
       </Dialog>
     </Card>
   );

@@ -9,61 +9,79 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
-  Grid,
+  Stack,
   InputAdornment,
-  FormGroup,
-  FormControlLabel,
-  Checkbox,
-  FormLabel,
   Divider,
   Typography,
   Paper,
+  Chip,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
 } from '@mui/material';
 import {
   Save as SaveIcon,
   Cancel as CancelIcon,
-  Visibility as DisplayIcon,
-  VisibilityOff as PrivacyIcon,
+  FilterList as FilterIcon,
+  EmojiEvents as WinnerIcon,
+  Person as PersonIcon,
 } from '@mui/icons-material';
 import { adminApi } from '../../lib/api';
+import EligibilityRulesEditor from './EligibilityRulesEditor';
+import DesignateWinnerSelector from './DesignateWinnerSelector';
 
-const DISPLAY_FIELD_OPTIONS = [
-  { value: 'name', label: '姓名' },
-  { value: 'employee_id', label: '員工編號' },
-  { value: 'phone', label: '電話' },
-  { value: 'email', label: 'Email' },
-  { value: 'department', label: '部門' },
-];
-
-export default function PrizeForm({ eventId, prize, nextPosition, onSave, onCancel }) {
+export default function PrizeForm({ eventId, prize, nextPosition, onSave, onCancel, readOnly = false }) {
   const [formData, setFormData] = useState({
     name: '',
-    prize_type: 'gift',
+    prize_type_id: null,
     value: '',
     quantity: 1,
     taxable: false,
     position: nextPosition,
-    display_fields: ['name'],
-    privacy_settings: { name: true },
     scheduled_at: '',
     allow_repeat_win_override: null,
+    eligibility_rules: null,
+    designated_participant_ids: [],
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [prizeTypes, setPrizeTypes] = useState([]);
+
+  // Load prize types on mount
+  useEffect(() => {
+    const loadPrizeTypes = async () => {
+      try {
+        const response = await adminApi.getPrizeTypes();
+        setPrizeTypes(response.data);
+        // Set default prize type if not editing
+        if (!prize && response.data.length > 0) {
+          const giftType = response.data.find(pt => pt.code === 'gift');
+          setFormData(prev => ({
+            ...prev,
+            prize_type_id: giftType?.id || response.data[0].id
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to load prize types:', err);
+      }
+    };
+    loadPrizeTypes();
+  }, []);
 
   useEffect(() => {
     if (prize) {
       setFormData({
         name: prize.name || '',
-        prize_type: prize.prize_type || 'gift',
+        prize_type_id: prize.prize_type_id || null,
         value: prize.value || '',
         quantity: prize.quantity || 1,
         taxable: prize.taxable || false,
         position: prize.position || nextPosition,
-        display_fields: prize.display_fields || ['name'],
-        privacy_settings: prize.privacy_settings || { name: true },
         scheduled_at: prize.scheduled_at ? new Date(prize.scheduled_at).toISOString().slice(0, 16) : '',
         allow_repeat_win_override: prize.allow_repeat_win_override,
+        eligibility_rules: prize.eligibility_rules || null,
+        designated_participant_ids: prize.designated_participant_ids || [],
       });
     }
   }, [prize, nextPosition]);
@@ -73,27 +91,6 @@ export default function PrizeForm({ eventId, prize, nextPosition, onSave, onCanc
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
-    }));
-  };
-
-  const handleDisplayFieldToggle = (field) => {
-    setFormData(prev => {
-      const fields = prev.display_fields.includes(field)
-        ? prev.display_fields.filter(f => f !== field)
-        : [...prev.display_fields, field];
-      // Ensure at least one field is selected
-      if (fields.length === 0) return prev;
-      return { ...prev, display_fields: fields };
-    });
-  };
-
-  const handlePrivacyToggle = (field) => {
-    setFormData(prev => ({
-      ...prev,
-      privacy_settings: {
-        ...prev.privacy_settings,
-        [field]: !prev.privacy_settings[field],
-      },
     }));
   };
 
@@ -107,6 +104,7 @@ export default function PrizeForm({ eventId, prize, nextPosition, onSave, onCanc
       value: parseFloat(formData.value),
       quantity: parseInt(formData.quantity),
       scheduled_at: formData.scheduled_at || null,
+      eligibility_rules: formData.eligibility_rules || {},
     };
 
     try {
@@ -131,36 +129,34 @@ export default function PrizeForm({ eventId, prize, nextPosition, onSave, onCanc
         </Alert>
       )}
 
-      <Grid container spacing={2}>
-        <Grid item xs={12} sm={6}>
-          <TextField
-            fullWidth
-            size="small"
-            label="獎項名稱"
-            name="name"
-            value={formData.name}
+      <Stack spacing={2}>
+        <TextField
+          fullWidth
+          size="small"
+          label="獎項名稱"
+          name="name"
+          value={formData.name}
+          onChange={handleChange}
+          required
+          placeholder="例如：iPhone 15 Pro"
+          disabled={readOnly}
+        />
+
+        <FormControl fullWidth size="small" disabled={readOnly}>
+          <InputLabel>類型</InputLabel>
+          <Select
+            name="prize_type_id"
+            value={formData.prize_type_id || ''}
+            label="類型"
             onChange={handleChange}
-            required
-            placeholder="例如：iPhone 15 Pro"
-          />
-        </Grid>
+          >
+            {prizeTypes.map((pt) => (
+              <MenuItem key={pt.id} value={pt.id}>{pt.name}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth size="small">
-            <InputLabel>類型</InputLabel>
-            <Select
-              name="prize_type"
-              value={formData.prize_type}
-              label="類型"
-              onChange={handleChange}
-            >
-              <MenuItem value="gift">禮品</MenuItem>
-              <MenuItem value="cash">現金</MenuItem>
-            </Select>
-          </FormControl>
-        </Grid>
-
-        <Grid item xs={6} sm={3}>
+        <Box sx={{ display: 'flex', gap: 2 }}>
           <TextField
             fullWidth
             size="small"
@@ -170,14 +166,12 @@ export default function PrizeForm({ eventId, prize, nextPosition, onSave, onCanc
             value={formData.value}
             onChange={handleChange}
             required
+            disabled={readOnly}
             InputProps={{
               startAdornment: <InputAdornment position="start">$</InputAdornment>,
             }}
             inputProps={{ min: 0, step: 0.01 }}
           />
-        </Grid>
-
-        <Grid item xs={6} sm={3}>
           <TextField
             fullWidth
             size="small"
@@ -187,25 +181,12 @@ export default function PrizeForm({ eventId, prize, nextPosition, onSave, onCanc
             value={formData.quantity}
             onChange={handleChange}
             required
+            disabled={readOnly}
             inputProps={{ min: 1 }}
           />
-        </Grid>
+        </Box>
 
-        <Grid item xs={6} sm={3}>
-          <TextField
-            fullWidth
-            size="small"
-            label="順序"
-            name="position"
-            type="number"
-            value={formData.position}
-            onChange={handleChange}
-            required
-            inputProps={{ min: 1 }}
-          />
-        </Grid>
-
-        <Grid item xs={6} sm={3}>
+        <Box sx={{ display: 'flex', gap: 2 }}>
           <TextField
             fullWidth
             size="small"
@@ -214,97 +195,169 @@ export default function PrizeForm({ eventId, prize, nextPosition, onSave, onCanc
             type="datetime-local"
             value={formData.scheduled_at}
             onChange={handleChange}
+            disabled={readOnly}
             InputLabelProps={{ shrink: true }}
           />
-        </Grid>
+          <TextField
+            fullWidth
+            size="small"
+            label="順序"
+            name="position"
+            type="number"
+            value={formData.position}
+            disabled
+            inputProps={{ min: 1 }}
+            helperText="由拖曳排列決定"
+          />
+        </Box>
 
-        <Grid item xs={12}>
-          <Divider sx={{ my: 1 }} />
-        </Grid>
+        <Divider />
 
-        {/* Display Fields Settings */}
-        <Grid item xs={12} sm={6}>
+        {/* Eligibility Rules (Phase 2) */}
+        {readOnly ? (
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <DisplayIcon fontSize="small" color="primary" />
-              <Typography variant="subtitle2">顯示欄位</Typography>
+              <FilterIcon fontSize="small" color="info" />
+              <Typography variant="subtitle2">參與資格條件</Typography>
             </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-              選擇在得獎名單中要顯示的欄位
-            </Typography>
-            <FormGroup row>
-              {DISPLAY_FIELD_OPTIONS.map(option => (
-                <FormControlLabel
-                  key={option.value}
-                  control={
-                    <Checkbox
-                      size="small"
-                      checked={formData.display_fields.includes(option.value)}
-                      onChange={() => handleDisplayFieldToggle(option.value)}
-                    />
-                  }
-                  label={<Typography variant="body2">{option.label}</Typography>}
-                />
-              ))}
-            </FormGroup>
+            {formData.eligibility_rules && (
+              (formData.eligibility_rules.min_seniority_years > 0) ||
+              (formData.eligibility_rules.departments?.length > 0)
+            ) ? (
+              <Box sx={{ pl: 2 }}>
+                {formData.eligibility_rules.min_seniority_years > 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    最低年資：{formData.eligibility_rules.min_seniority_years} 年
+                  </Typography>
+                )}
+                {formData.eligibility_rules.departments?.length > 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    限定部門：{formData.eligibility_rules.departments.join('、')}
+                  </Typography>
+                )}
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ pl: 2 }}>
+                無特殊條件
+              </Typography>
+            )}
           </Paper>
-        </Grid>
+        ) : (
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <FilterIcon fontSize="small" color="info" />
+              <Typography variant="subtitle2">參與資格條件</Typography>
+            </Box>
+            <EligibilityRulesEditor
+              eventId={eventId}
+              prizeId={prize?.id}
+              value={formData.eligibility_rules}
+              onChange={(rules) => setFormData(prev => ({ ...prev, eligibility_rules: rules }))}
+            />
+          </Paper>
+        )}
 
-        {/* Privacy Settings */}
-        <Grid item xs={12} sm={6}>
+        {/* Designated Winner (Phase 2) */}
+        {readOnly ? (
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <PrivacyIcon fontSize="small" color="warning" />
-              <Typography variant="subtitle2">隱私遮罩</Typography>
+              <PersonIcon fontSize="small" color="warning" />
+              <Typography variant="subtitle2">指定中獎人</Typography>
             </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-              勾選的欄位將會套用隱私遮罩（例：王＊明、138****5678）
-            </Typography>
-            <FormGroup row>
-              {DISPLAY_FIELD_OPTIONS.map(option => (
-                <FormControlLabel
-                  key={option.value}
-                  control={
-                    <Checkbox
-                      size="small"
-                      checked={formData.privacy_settings[option.value] || false}
-                      onChange={() => handlePrivacyToggle(option.value)}
-                      disabled={!formData.display_fields.includes(option.value)}
-                    />
-                  }
-                  label={
-                    <Typography
-                      variant="body2"
-                      color={formData.display_fields.includes(option.value) ? 'text.primary' : 'text.disabled'}
-                    >
-                      {option.label}
-                    </Typography>
-                  }
-                />
-              ))}
-            </FormGroup>
+            {prize?.designated_participants?.length > 0 ? (
+              <Box sx={{ pl: 2, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {prize.designated_participants.map(p => (
+                  <Chip key={p.id} label={p.name} size="small" variant="outlined" color="warning" />
+                ))}
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ pl: 2 }}>
+                無指定中獎人
+              </Typography>
+            )}
           </Paper>
-        </Grid>
-      </Grid>
+        ) : (
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <DesignateWinnerSelector
+              eventId={eventId}
+              value={formData.designated_participant_ids}
+              maxCount={formData.quantity}
+              onChange={(ids) => setFormData(prev => ({ ...prev, designated_participant_ids: ids }))}
+            />
+          </Paper>
+        )}
 
-      <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-        <Button
-          type="submit"
-          variant="contained"
-          size="small"
-          startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
-          disabled={loading}
-        >
-          {loading ? '儲存中...' : '儲存'}
-        </Button>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<CancelIcon />}
-          onClick={onCancel}
-        >
-          取消
-        </Button>
+        {/* Winners Section (only shown when prize is drawn) */}
+        {prize?.drawn && prize?.winners?.length > 0 && (
+          <>
+            <Divider />
+            <Paper variant="outlined" sx={{ p: 2, bgcolor: 'success.50' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <WinnerIcon fontSize="small" color="success" />
+                <Typography variant="subtitle2" color="success.main">
+                  中獎名單 ({prize.winners.length} 人)
+                </Typography>
+              </Box>
+              <List dense disablePadding>
+                {prize.winners.map((winner, index) => (
+                  <ListItem key={winner.id} disablePadding sx={{ py: 0.5 }}>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      <Typography variant="caption" sx={{
+                        width: 20, height: 20, borderRadius: '50%',
+                        bgcolor: 'success.main', color: 'white',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 11
+                      }}>
+                        {index + 1}
+                      </Typography>
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={winner.name}
+                      secondary={[winner.employee_id, winner.department].filter(Boolean).join(' · ')}
+                      primaryTypographyProps={{ variant: 'body2' }}
+                      secondaryTypographyProps={{ variant: 'caption' }}
+                    />
+                    {winner.distributed && (
+                      <Chip label="已發放" size="small" color="success" sx={{ height: 20 }} />
+                    )}
+                  </ListItem>
+                ))}
+              </List>
+            </Paper>
+          </>
+        )}
+      </Stack>
+
+      <Box sx={{ display: 'flex', gap: 1, mt: 2, justifyContent: 'flex-end' }}>
+        {readOnly ? (
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={onCancel}
+          >
+            關閉
+          </Button>
+        ) : (
+          <>
+            <Button
+              type="submit"
+              variant="contained"
+              size="small"
+              startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
+              disabled={loading}
+            >
+              {loading ? '儲存中...' : '儲存'}
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<CancelIcon />}
+              onClick={onCancel}
+            >
+              取消
+            </Button>
+          </>
+        )}
       </Box>
     </Box>
   );
