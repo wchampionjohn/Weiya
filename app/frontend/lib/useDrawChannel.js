@@ -3,13 +3,18 @@ import { createConsumer } from '@rails/actioncable';
 
 const consumer = createConsumer();
 
-export function useDrawChannel(eventId, onDrawResult) {
+export function useDrawChannel(eventId, onDrawResult, onBonusPrize) {
   const subscriptionRef = useRef(null);
   const callbackRef = useRef(onDrawResult);
+  const bonusCallbackRef = useRef(onBonusPrize);
 
   useEffect(() => {
     callbackRef.current = onDrawResult;
   }, [onDrawResult]);
+
+  useEffect(() => {
+    bonusCallbackRef.current = onBonusPrize;
+  }, [onBonusPrize]);
 
   useEffect(() => {
     if (!eventId) return;
@@ -25,9 +30,13 @@ export function useDrawChannel(eventId, onDrawResult) {
         },
         received(data) {
           console.log('Received draw data:', data);
-          // Handle both real draw results and simulation results
+          // Handle draw results and simulation results
           if ((data.type === 'draw_result' || data.type === 'simulation_result') && callbackRef.current) {
             callbackRef.current(data);
+          }
+          // Handle bonus prize added
+          if (data.type === 'bonus_prize_added' && bonusCallbackRef.current) {
+            bonusCallbackRef.current(data.prize);
           }
         },
       }
