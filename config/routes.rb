@@ -6,6 +6,16 @@ Rails.application.routes.draw do
       namespace :admin do
         resource :session, only: [:create, :destroy]
 
+        # Departments
+        resources :departments, only: [:index]
+
+        # Prize Types
+        resources :prize_types, only: [:index, :create, :update, :destroy] do
+          member do
+            get :check_usage
+          end
+        end
+
         # Global participants management
         resources :participants, only: [:index, :show, :create, :update, :destroy]
 
@@ -13,12 +23,20 @@ Rails.application.routes.draw do
           resources :prizes, except: [:index] do
             collection do
               patch :reorder
+              post :bonus
+            end
+            member do
+              get :eligible_participants
             end
           end
           member do
             post :publish
+            post :complete
             post :generate_slug
             delete :clear_slug
+            post :copy
+            post :preview_notification
+            post :preview_eligible_participants
           end
           # Event-specific participants
           collection do
@@ -31,7 +49,13 @@ Rails.application.routes.draw do
         resources :prizes, only: [] do
           resource :draw, only: [:create]
         end
-        resources :winners, only: [:index, :update]
+        resources :winners, only: [:index, :update] do
+          collection do
+            post :batch_distribute
+          end
+        end
+
+        resources :notification_templates, only: [:index, :show, :create, :update, :destroy]
       end
 
       # Public routes
