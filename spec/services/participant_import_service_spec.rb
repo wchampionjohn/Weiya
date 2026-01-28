@@ -150,5 +150,94 @@ RSpec.describe ParticipantImportService do
         expect(result.imported_count).to eq(1)
       end
     end
+
+    context 'with hire_date and department columns' do
+      let(:csv_content) do
+        <<~CSV
+          name,employee_id,phone,email,hire_date,department
+          John Doe,E001,0912345678,john@example.com,2020-01-15,Engineering
+          Jane Doe,E002,0923456789,jane@example.com,2019-06-01,Marketing
+        CSV
+      end
+
+      subject { described_class.new(event, csv_content).call }
+
+      it 'imports hire_date correctly' do
+        subject
+        participant = Participant.find_by(employee_id: 'E001')
+        expect(participant.hire_date).to eq(Date.new(2020, 1, 15))
+      end
+
+      it 'imports department correctly' do
+        subject
+        participant = Participant.find_by(employee_id: 'E001')
+        expect(participant.department).to eq('Engineering')
+      end
+
+      it 'imports all participants with seniority data' do
+        expect { subject }.to change(Participant, :count).by(2)
+        jane = Participant.find_by(employee_id: 'E002')
+        expect(jane.hire_date).to eq(Date.new(2019, 6, 1))
+        expect(jane.department).to eq('Marketing')
+      end
+    end
+
+    context 'with various date formats' do
+      let(:csv_content) do
+        <<~CSV
+          name,employee_id,phone,email,hire_date,department
+          John Doe,E001,0912345678,john@example.com,2020/01/15,Dept1
+          Jane Doe,E002,0923456789,jane@example.com,20190601,Dept2
+        CSV
+      end
+
+      subject { described_class.new(event, csv_content).call }
+
+      it 'parses YYYY/MM/DD format' do
+        subject
+        expect(Participant.find_by(employee_id: 'E001').hire_date).to eq(Date.new(2020, 1, 15))
+      end
+
+      it 'parses YYYYMMDD format' do
+        subject
+        expect(Participant.find_by(employee_id: 'E002').hire_date).to eq(Date.new(2019, 6, 1))
+      end
+    end
+
+    context 'with missing hire_date and department' do
+      let(:csv_content) do
+        <<~CSV
+          name,employee_id,phone,email,hire_date,department
+          John Doe,E001,0912345678,john@example.com,,
+        CSV
+      end
+
+      subject { described_class.new(event, csv_content).call }
+
+      it 'imports participant with nil hire_date and department' do
+        expect { subject }.to change(Participant, :count).by(1)
+        participant = Participant.find_by(employee_id: 'E001')
+        expect(participant.hire_date).to be_nil
+        expect(participant.department).to be_nil
+      end
+    end
+
+    context 'with only basic columns (backward compatibility)' do
+      let(:csv_content) do
+        <<~CSV
+          name,employee_id,phone,email
+          John Doe,E001,0912345678,john@example.com
+        CSV
+      end
+
+      subject { described_class.new(event, csv_content).call }
+
+      it 'imports successfully without hire_date and department columns' do
+        expect { subject }.to change(Participant, :count).by(1)
+        participant = Participant.find_by(employee_id: 'E001')
+        expect(participant.hire_date).to be_nil
+        expect(participant.department).to be_nil
+      end
+    end
   end
 end

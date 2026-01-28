@@ -104,4 +104,91 @@ RSpec.describe 'Api::V1::Admin::Events', type: :request do
     end
   end
 
+  # Phase 2: Copy event
+  describe 'POST /api/v1/admin/events/:id/copy' do
+    let(:event) { create(:event, name: '2025 尾牙抽獎', status: :completed) }
+    let!(:prize) { create(:prize, event: event) }
+
+    it 'copies the event' do
+      expect {
+        post "/api/v1/admin/events/#{event.id}/copy"
+      }.to change(Event, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      expect(json_response['name']).to eq('2025 尾牙抽獎 (複製)')
+      expect(json_response['status']).to eq('draft')
+    end
+
+    it 'copies with custom name' do
+      post "/api/v1/admin/events/#{event.id}/copy", params: { event: { name: '2026 尾牙抽獎' } }
+
+      expect(response).to have_http_status(:created)
+      expect(json_response['name']).to eq('2026 尾牙抽獎')
+    end
+
+    it 'copies prizes by default' do
+      post "/api/v1/admin/events/#{event.id}/copy"
+
+      new_event = Event.find(json_response['id'])
+      expect(new_event.prizes.count).to eq(1)
+    end
+
+    it 'does not copy prizes when copy_prizes is false' do
+      post "/api/v1/admin/events/#{event.id}/copy", params: { event: { copy_prizes: false } }
+
+      new_event = Event.find(json_response['id'])
+      expect(new_event.prizes.count).to eq(0)
+    end
+
+    it 'copies participants when copy_participants is true' do
+      participant = create(:participant)
+      create(:event_participant, event: event, participant: participant)
+
+      post "/api/v1/admin/events/#{event.id}/copy", params: { event: { copy_participants: true } }
+
+      new_event = Event.find(json_response['id'])
+      expect(new_event.participants.count).to eq(1)
+    end
+  end
+
+  # Phase 2: Preview notification
+  describe 'POST /api/v1/admin/events/:id/preview_notification' do
+    let(:event) { create(:event, sms_template: '恭喜 {name}！您獲得 {prize}！', email_template: '親愛的 {name}') }
+
+    it 'previews SMS template' do
+      post "/api/v1/admin/events/#{event.id}/preview_notification", params: {
+        template_type: 'sms',
+        sample_data: { 'name' => '王小明', 'prize' => '頭獎' }
+      }
+
+      expect(response).to have_http_status(:success)
+      expect(json_response['preview']).to eq('恭喜 王小明！您獲得 頭獎！')
+    end
+
+    it 'previews email template' do
+      post "/api/v1/admin/events/#{event.id}/preview_notification", params: {
+        template_type: 'email',
+        sample_data: { 'name' => '王小明' }
+      }
+
+      expect(response).to have_http_status(:success)
+      expect(json_response['preview']).to eq('親愛的 王小明')
+    end
+
+    it 'returns error for invalid template type' do
+      post "/api/v1/admin/events/#{event.id}/preview_notification", params: { template_type: 'invalid' }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(json_response['error']).to eq('無效的模板類型')
+    end
+
+    it 'returns error when template is not set' do
+      event.update!(sms_template: nil)
+      post "/api/v1/admin/events/#{event.id}/preview_notification", params: { template_type: 'sms' }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(json_response['error']).to eq('模板尚未設定')
+    end
+  end
+
 end
