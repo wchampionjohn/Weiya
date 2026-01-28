@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useEvent } from './EventApp';
 import { useDrawChannel } from '../../lib/useDrawChannel';
+import ScheduleDisplay from './ScheduleDisplay';
 
 interface Prize {
   id: number;
@@ -68,11 +69,7 @@ export default function OverviewPage() {
       <header className="bg-[#FF6B6B] border-b-4 border-[#2C3E50] p-6">
         <h1 className="text-3xl font-bold text-center text-[#2C3E50]">{event.name}</h1>
         <p className="text-center text-[#2C3E50] mt-2">
-          {new Date(event.event_date).toLocaleDateString('zh-TW', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })}
+          {new Date(event.event_date).toISOString().slice(0, 10)}
         </p>
       </header>
 
@@ -118,6 +115,11 @@ export default function OverviewPage() {
             </div>
           </div>
         </section>
+
+        {/* Schedule Display */}
+        {event.schedule && event.schedule.length > 0 && (
+          <ScheduleDisplay schedule={event.schedule} />
+        )}
 
         {/* Current Status */}
         {stats.currentPrize && (

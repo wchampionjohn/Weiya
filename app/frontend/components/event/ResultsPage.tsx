@@ -118,11 +118,7 @@ export default function ResultsPage({ showLayout = false }: ResultsPageProps) {
         <header className="bg-[#FF6B6B] border-b-4 border-[#2C3E50] p-6">
           <h1 className="text-3xl font-bold text-center text-[#2C3E50]">{event?.name}</h1>
           <p className="text-center text-[#2C3E50] mt-2">
-            {event?.event_date && new Date(event.event_date).toLocaleDateString('zh-TW', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
+            {event?.event_date && new Date(event.event_date).toISOString().slice(0, 10)}
           </p>
         </header>
         <main className="container mx-auto p-6">

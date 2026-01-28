@@ -52,13 +52,7 @@ export default function WelcomePage({ onLogin }: WelcomePageProps) {
           </div>
           <h1 className="text-3xl font-bold text-[#2C3E50] mb-2">{event.name}</h1>
           <p className="text-[#2C3E50]">
-            {new Date(event.event_date).toLocaleDateString('zh-TW', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            {new Date(event.event_date).toISOString().slice(0, 16).replace('T', ' ')}
           </p>
         </div>
 

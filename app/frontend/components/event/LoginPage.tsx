@@ -138,7 +138,7 @@ export default function LoginPage() {
                             獎值：NT$ {win.prize_value.toLocaleString()}
                           </div>
                           <div className="text-sm text-white opacity-80 mt-1">
-                            中獎時間：{new Date(win.drawn_at).toLocaleString('zh-TW')}
+                            中獎時間：{new Date(win.drawn_at).toISOString().slice(0, 16).replace('T', ' ')}
                           </div>
                         </div>
                       ))}

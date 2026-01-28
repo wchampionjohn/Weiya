@@ -13,10 +13,22 @@ interface Prize {
   drawn: boolean;
   drawn_at: string | null;
   position: number;
+  is_bonus?: boolean;
   winners: Array<{
     id: number;
     display_data: Record<string, string>;
   }>;
+}
+
+interface BonusPrize {
+  id: number;
+  name: string;
+  prize_type: string;
+  value: number;
+  quantity: number;
+  position: number;
+  is_bonus: boolean;
+  drawn: boolean;
 }
 
 interface DrawResult {
@@ -36,13 +48,21 @@ export default function LiveDrawPage() {
   const { id } = useParams();
   const [latestDraw, setLatestDraw] = useState<DrawResult | null>(null);
   const [showAnimation, setShowAnimation] = useState(false);
+  const [bonusPrizeAlert, setBonusPrizeAlert] = useState<BonusPrize | null>(null);
 
   const handleDrawResult = (data: DrawResult) => {
     setLatestDraw(data);
     setShowAnimation(true);
   };
 
-  useDrawChannel(event?.id, handleDrawResult);
+  const handleBonusPrize = (prize: BonusPrize) => {
+    setBonusPrizeAlert(prize);
+    refresh();
+    // Auto dismiss after 5 seconds
+    setTimeout(() => setBonusPrizeAlert(null), 5000);
+  };
+
+  useDrawChannel(event?.id, handleDrawResult, handleBonusPrize);
 
   const handleAnimationClose = () => {
     setShowAnimation(false);
@@ -97,7 +117,7 @@ export default function LiveDrawPage() {
             </Link>
             <h1 className="text-xl font-bold text-[#2C3E50]">{event.name}</h1>
             <div className="text-sm font-bold text-[#2C3E50]">
-              {new Date(event.event_date).toLocaleDateString('zh-TW')}
+              {new Date(event.event_date).toISOString().slice(0, 10)}
             </div>
           </div>
 
@@ -122,6 +142,25 @@ export default function LiveDrawPage() {
       </header>
 
       <main className="container mx-auto p-6">
+        {/* Bonus Prize Alert */}
+        {bonusPrizeAlert && (
+          <section className="neo-card p-6 mb-6 bg-[#F39C12] animate-pulse">
+            <div className="flex items-center justify-center gap-4">
+              <span className="text-4xl">🎁</span>
+              <div className="text-center">
+                <div className="text-sm font-bold text-white mb-1">加碼獎項</div>
+                <h2 className="text-2xl font-bold text-white">
+                  {bonusPrizeAlert.name}
+                </h2>
+                <div className="text-white">
+                  NT$ {bonusPrizeAlert.value.toLocaleString()} × {bonusPrizeAlert.quantity} 名
+                </div>
+              </div>
+              <span className="text-4xl">🎁</span>
+            </div>
+          </section>
+        )}
+
         {/* Current Prize Section */}
         {!stats.isComplete && stats.currentPrize && (
           <section className="neo-card p-8 mb-6 bg-[#FFEAA7] text-center">
@@ -142,12 +181,12 @@ export default function LiveDrawPage() {
 
         {/* Complete Message */}
         {stats.isComplete && (
-          <section className="neo-card p-8 mb-6 bg-[#2ECC71] text-center">
+          <section className="neo-card p-8 mb-6 bg-gradient-to-br from-[#27AE60] to-[#1E8449] text-center">
             <div className="text-4xl mb-4">🎊</div>
-            <h2 className="text-3xl font-bold text-white mb-2">
+            <h2 className="text-3xl font-bold text-white mb-2 drop-shadow-md">
               活動已完成！
             </h2>
-            <p className="text-white text-lg mb-4">
+            <p className="text-white/90 text-lg mb-4 drop-shadow-sm">
               所有獎項已抽完
             </p>
             <Link
@@ -176,6 +215,11 @@ export default function LiveDrawPage() {
                       {idx + 1}
                     </span>
                     <span className="font-bold text-[#2C3E50]">{prize.name}</span>
+                    {prize.is_bonus && (
+                      <span className="px-2 py-0.5 bg-[#F39C12] text-white text-xs font-bold rounded">
+                        加碼
+                      </span>
+                    )}
                   </div>
                   <span className="text-sm text-[#7F8C8D]">
                     NT$ {prize.value.toLocaleString()} × {prize.quantity}

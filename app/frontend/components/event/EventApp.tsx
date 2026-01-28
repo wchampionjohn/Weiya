@@ -65,9 +65,12 @@ export default function EventApp({ eventId, previewMode = false }: EventAppProps
   const navigate = useNavigate();
   const location = useLocation();
 
-  const loadEvent = async () => {
+  const loadEvent = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      // Only show loading on initial load, not on refresh
+      if (!isRefresh) {
+        setLoading(true);
+      }
       setError(null);
       const response = await publicApi.getEvent(eventId);
       setEvent(response.data);
@@ -81,8 +84,14 @@ export default function EventApp({ eventId, previewMode = false }: EventAppProps
         setError('載入活動失敗');
       }
     } finally {
-      setLoading(false);
+      if (!isRefresh) {
+        setLoading(false);
+      }
     }
+  };
+
+  const refresh = async () => {
+    await loadEvent(true);
   };
 
   useEffect(() => {
@@ -124,7 +133,7 @@ export default function EventApp({ eventId, previewMode = false }: EventAppProps
   }
 
   return (
-    <EventContext.Provider value={{ event, loading, error, refresh: loadEvent, previewMode }}>
+    <EventContext.Provider value={{ event, loading, error, refresh, previewMode }}>
       {previewMode && (
         <div className="bg-[#9B59B6] text-white text-center py-2 font-bold border-b-4 border-[#2C3E50]">
           🔍 預覽模式 — 此活動尚未發佈，模擬抽獎結果不會儲存
