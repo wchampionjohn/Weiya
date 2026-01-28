@@ -23,7 +23,11 @@ import {
   Button,
   Alert,
   Snackbar,
-  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -38,6 +42,10 @@ import {
   Publish as PublishIcon,
   Group as GroupIcon,
   Settings as SettingsIcon,
+  FlashOn as QuickDrawIcon,
+  Category as CategoryIcon,
+  CheckCircle as CompleteIcon,
+  Notifications as NotificationsIcon,
 } from '@mui/icons-material';
 import { AuthProvider, useAuth } from './AuthContext';
 import LoginPage from './LoginPage';
@@ -46,31 +54,36 @@ import EventList from './EventList';
 import EventForm from './EventForm';
 import PrizeManager from './PrizeManager';
 import ParticipantList from './ParticipantList';
-import ParticipantImport from './ParticipantImport';
 import DrawControl from './DrawControl';
 import WinnerManagement from './WinnerManagement';
 import ParticipantManagement from './ParticipantManagement';
+import QuickDraw from './QuickDraw';
+import PrizeTypesManager from './PrizeTypesManager';
+import NotificationTemplatesManager from './NotificationTemplatesManager';
 import { adminApi } from '../../lib/api';
 
 const drawerWidth = 260;
 
 // Event detail page with tabs
 function EventDetail({ showSnackbar }) {
-  const { eventId, tab = 'settings' } = useParams();
+  const { eventId, tab = 'settings', prizeId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [eventDetails, setEventDetails] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+
+  // Detect if we're on prize edit/new route
+  const isPrizeEditRoute = location.pathname.includes('/prizes/') && (location.pathname.endsWith('/edit') || prizeId);
+  const isPrizeNewRoute = location.pathname.endsWith('/prizes/new');
+  const effectiveTab = (isPrizeEditRoute || isPrizeNewRoute) ? 'prizes' : tab;
 
   const loadEventDetails = async () => {
     try {
-      setLoading(true);
       const response = await adminApi.getEvent(eventId);
       setEventDetails(response.data);
     } catch (err) {
       console.error('載入活動詳情失敗:', err);
       showSnackbar('載入活動詳情失敗', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -88,18 +101,19 @@ function EventDetail({ showSnackbar }) {
     }
   };
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const handleComplete = async () => {
+    setCompleteDialogOpen(false);
+    try {
+      await adminApi.completeEvent(eventId);
+      await loadEventDetails();
+      showSnackbar('活動已完成！');
+    } catch (err) {
+      showSnackbar(err.response?.data?.error || '完成失敗', 'error');
+    }
+  };
 
   if (!eventDetails) {
-    return (
-      <Alert severity="error">活動不存在</Alert>
-    );
+    return null; // GlobalLoading handles the loading state
   }
 
   return (
@@ -108,7 +122,7 @@ function EventDetail({ showSnackbar }) {
         <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
           <Button
             variant="contained"
-            color="success"
+            color="warning"
             startIcon={<PublishIcon />}
             onClick={handlePublish}
           >
@@ -117,7 +131,42 @@ function EventDetail({ showSnackbar }) {
         </Box>
       )}
 
-      {tab === 'settings' && (
+      {eventDetails.can_complete && (
+        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button
+            variant="contained"
+            color="info"
+            startIcon={<CompleteIcon />}
+            onClick={() => setCompleteDialogOpen(true)}
+          >
+            結束活動
+          </Button>
+        </Box>
+      )}
+
+      <Dialog
+        open={completeDialogOpen}
+        onClose={() => setCompleteDialogOpen(false)}
+      >
+        <DialogTitle>確認結束活動</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            結束活動後將無法再進行任何異動，包括獎項設定、參與者管理、抽獎操作等。
+            <br /><br />
+            確定要結束此活動嗎？
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCompleteDialogOpen(false)}>
+            取消
+          </Button>
+          <Button onClick={handleComplete} color="info" variant="contained">
+            確認結束
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {effectiveTab === 'settings' && (
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
             活動設定
@@ -130,28 +179,26 @@ function EventDetail({ showSnackbar }) {
         </Paper>
       )}
 
-      {tab === 'prizes' && (
+      {effectiveTab === 'prizes' && (
         <PrizeManager
           event={eventDetails}
           prizes={eventDetails.prizes}
           onUpdate={loadEventDetails}
+          editPrizeId={isPrizeEditRoute ? prizeId : null}
+          isNewPrize={isPrizeNewRoute}
+          showSnackbar={showSnackbar}
         />
       )}
 
-      {tab === 'participants' && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <ParticipantImport
-            eventId={eventDetails.id}
-            onSuccess={() => { loadEventDetails(); showSnackbar('參與者已匯入！'); }}
-          />
-          <ParticipantList
-            event={eventDetails}
-            onUpdate={loadEventDetails}
-          />
-        </Box>
+      {effectiveTab === 'participants' && (
+        <ParticipantList
+          event={eventDetails}
+          onUpdate={loadEventDetails}
+          showSnackbar={showSnackbar}
+        />
       )}
 
-      {tab === 'draw' && (
+      {effectiveTab === 'draw' && (
         <DrawControl
           event={eventDetails}
           prizes={eventDetails.prizes}
@@ -159,8 +206,8 @@ function EventDetail({ showSnackbar }) {
         />
       )}
 
-      {tab === 'winners' && (
-        <WinnerManagement eventId={eventDetails.id} />
+      {effectiveTab === 'winners' && (
+        <WinnerManagement eventId={eventDetails.id} event={eventDetails} />
       )}
     </Box>
   );
@@ -214,11 +261,7 @@ function AdminContent() {
   };
 
   if (authLoading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <CircularProgress />
-      </Box>
-    );
+    return null; // GlobalLoading handles this
   }
 
   if (!isAuthenticated) {
@@ -255,6 +298,21 @@ function AdminContent() {
     { id: 'winners', label: '得獎者', icon: <WinnerIcon /> },
   ];
 
+  // Common styles for menu items with highlight effect
+  const menuItemSx = {
+    borderRadius: 2,
+    '&.Mui-selected': {
+      bgcolor: 'primary.main',
+      color: 'white',
+      '&:hover': {
+        bgcolor: 'primary.dark',
+      },
+      '& .MuiListItemIcon-root': {
+        color: 'white',
+      },
+    },
+  };
+
   const drawer = (
     <Box>
       <Toolbar sx={{ justifyContent: 'center', py: 2 }}>
@@ -269,7 +327,7 @@ function AdminContent() {
             component={RouterLink}
             to="/admin"
             selected={location.pathname === '/admin' || location.pathname === '/admin/'}
-            sx={{ borderRadius: 2 }}
+            sx={menuItemSx}
           >
             <ListItemIcon><DashboardIcon /></ListItemIcon>
             <ListItemText primary="所有活動" />
@@ -278,12 +336,45 @@ function AdminContent() {
         <ListItem disablePadding sx={{ mb: 0.5 }}>
           <ListItemButton
             component={RouterLink}
+            to="/admin/quick-draw"
+            selected={location.pathname === '/admin/quick-draw'}
+            sx={menuItemSx}
+          >
+            <ListItemIcon><QuickDrawIcon /></ListItemIcon>
+            <ListItemText primary="快速抽獎" />
+          </ListItemButton>
+        </ListItem>
+        <ListItem disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            component={RouterLink}
             to="/admin/participants"
             selected={location.pathname === '/admin/participants'}
-            sx={{ borderRadius: 2 }}
+            sx={menuItemSx}
           >
             <ListItemIcon><GroupIcon /></ListItemIcon>
             <ListItemText primary="參與者管理" />
+          </ListItemButton>
+        </ListItem>
+        <ListItem disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            component={RouterLink}
+            to="/admin/prize-types"
+            selected={location.pathname === '/admin/prize-types'}
+            sx={menuItemSx}
+          >
+            <ListItemIcon><CategoryIcon /></ListItemIcon>
+            <ListItemText primary="獎品類型" />
+          </ListItemButton>
+        </ListItem>
+        <ListItem disablePadding sx={{ mb: 0.5 }}>
+          <ListItemButton
+            component={RouterLink}
+            to="/admin/notification-templates"
+            selected={location.pathname === '/admin/notification-templates'}
+            sx={menuItemSx}
+          >
+            <ListItemIcon><NotificationsIcon /></ListItemIcon>
+            <ListItemText primary="通知模板" />
           </ListItemButton>
         </ListItem>
       </List>
@@ -312,7 +403,7 @@ function AdminContent() {
                   component={RouterLink}
                   to={`/admin/events/${eventId}/${tab.id}`}
                   selected={isEventPage && activeTab === tab.id}
-                  sx={{ borderRadius: 2 }}
+                  sx={menuItemSx}
                 >
                   <ListItemIcon>{tab.icon}</ListItemIcon>
                   <ListItemText primary={tab.label} />
@@ -343,9 +434,21 @@ function AdminContent() {
       crumbs.push(
         <Typography key="new" color="text.primary">新增活動</Typography>
       );
+    } else if (location.pathname === '/admin/quick-draw') {
+      crumbs.push(
+        <Typography key="quick-draw" color="text.primary">快速抽獎</Typography>
+      );
     } else if (location.pathname === '/admin/participants') {
       crumbs.push(
         <Typography key="participants" color="text.primary">參與者管理</Typography>
+      );
+    } else if (location.pathname === '/admin/prize-types') {
+      crumbs.push(
+        <Typography key="prize-types" color="text.primary">獎品類型</Typography>
+      );
+    } else if (location.pathname === '/admin/notification-templates') {
+      crumbs.push(
+        <Typography key="notification-templates" color="text.primary">通知模板</Typography>
       );
     } else if (currentEvent) {
       crumbs.push(
@@ -475,6 +578,11 @@ function AdminContent() {
             </Paper>
           } />
           <Route path="participants" element={<ParticipantManagement />} />
+          <Route path="quick-draw" element={<QuickDraw />} />
+          <Route path="prize-types" element={<PrizeTypesManager />} />
+          <Route path="notification-templates" element={<NotificationTemplatesManager />} />
+          <Route path="events/:eventId/prizes/:prizeId/edit" element={<EventDetail showSnackbar={showSnackbar} />} />
+          <Route path="events/:eventId/prizes/new" element={<EventDetail showSnackbar={showSnackbar} />} />
           <Route path="events/:eventId/:tab?" element={<EventDetail showSnackbar={showSnackbar} />} />
         </Routes>
       </Box>

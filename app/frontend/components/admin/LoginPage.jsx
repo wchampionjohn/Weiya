@@ -26,7 +26,7 @@ export default function LoginPage({ onLoginSuccess }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, sessionExpired, clearSessionExpired } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -85,6 +85,16 @@ export default function LoginPage({ onLoginSuccess }) {
               登入以管理您的抽獎活動
             </Typography>
           </Box>
+
+          {sessionExpired && (
+            <Alert
+              severity="warning"
+              sx={{ mb: 3 }}
+              onClose={clearSessionExpired}
+            >
+              登入已逾時，請重新登入
+            </Alert>
+          )}
 
           {error && (
             <Alert severity="error" sx={{ mb: 3 }}>
