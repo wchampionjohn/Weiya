@@ -12,6 +12,8 @@ class Winner < ApplicationRecord
 
   scope :distributed, -> { where(distributed: true) }
   scope :pending, -> { where(distributed: false) }
+  scope :designated, -> { where(is_designated: true) }
+  scope :random, -> { where(is_designated: false) }
 
   delegate :event, to: :prize
   delegate :name, :employee_id, :phone, :email, to: :event_participant

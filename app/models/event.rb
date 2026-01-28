@@ -5,6 +5,8 @@ class Event < ApplicationRecord
   has_many :event_participants, dependent: :destroy
   has_many :participants, through: :event_participants
   has_many :winners, through: :prizes
+  belongs_to :copied_from_event, class_name: "Event", optional: true
+  has_many :copied_events, class_name: "Event", foreign_key: :copied_from_event_id
 
   validates :name, presence: true
   validates :event_date, presence: true
@@ -13,6 +15,7 @@ class Event < ApplicationRecord
 
   scope :active_or_completed, -> { where(status: [:active, :completed]) }
   scope :published, -> { where.not(status: :draft) }
+  scope :completed, -> { where(status: :completed) }
 
   def self.find_by_slug_or_id(identifier)
     find_by(public_slug: identifier) || find_by(id: identifier)
@@ -41,6 +44,14 @@ class Event < ApplicationRecord
 
   def editable?
     draft?
+  end
+
+  def all_prizes_drawn?
+    prizes.any? && prizes.all?(&:drawn?)
+  end
+
+  def can_complete?
+    active? && all_prizes_drawn?
   end
 
   def can_modify_prize?(prize)
