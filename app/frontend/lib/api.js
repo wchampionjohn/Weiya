@@ -40,6 +40,9 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Session expiration event
+export const SESSION_EXPIRED_EVENT = 'admin:session-expired';
+
 api.interceptors.response.use(
   (response) => {
     loadingCount = Math.max(0, loadingCount - 1);
@@ -51,12 +54,9 @@ api.interceptors.response.use(
     notifyListeners();
 
     if (error.response?.status === 401) {
-      // Clear localStorage to sync auth state with server
+      // Clear localStorage and dispatch session expired event
       localStorage.removeItem('admin');
-      // Only redirect if not already on admin page (to avoid loop)
-      if (!window.location.pathname.startsWith('/admin')) {
-        window.location.href = '/admin';
-      }
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
     }
     return Promise.reject(error);
   }
@@ -66,6 +66,16 @@ export const adminApi = {
   login: (email, password) => api.post('/admin/session', { email, password }),
   logout: () => api.delete('/admin/session'),
 
+  // Departments
+  getDepartments: () => api.get('/admin/departments'),
+
+  // Prize Types
+  getPrizeTypes: () => api.get('/admin/prize_types'),
+  createPrizeType: (data) => api.post('/admin/prize_types', { prize_type: data }),
+  updatePrizeType: (id, data) => api.patch(`/admin/prize_types/${id}`, { prize_type: data }),
+  deletePrizeType: (id) => api.delete(`/admin/prize_types/${id}`),
+  checkPrizeTypeUsage: (id) => api.get(`/admin/prize_types/${id}/check_usage`),
+
   // Events
   getEvents: () => api.get('/admin/events'),
   getEvent: (id) => api.get(`/admin/events/${id}`),
@@ -73,14 +83,18 @@ export const adminApi = {
   updateEvent: (id, data) => api.patch(`/admin/events/${id}`, { event: data }),
   deleteEvent: (id) => api.delete(`/admin/events/${id}`),
   publishEvent: (id) => api.post(`/admin/events/${id}/publish`),
+  completeEvent: (id) => api.post(`/admin/events/${id}/complete`),
   generateSlug: (id) => api.post(`/admin/events/${id}/generate_slug`),
   clearSlug: (id) => api.delete(`/admin/events/${id}/clear_slug`),
+  copyEvent: (id, data = {}) => api.post(`/admin/events/${id}/copy`, { event: data }),
+  previewNotification: (id, templateType, sampleData = {}) => api.post(`/admin/events/${id}/preview_notification`, { template_type: templateType, sample_data: sampleData }),
 
   // Prizes
   createPrize: (eventId, data) => api.post(`/admin/events/${eventId}/prizes`, { prize: data }),
   updatePrize: (eventId, prizeId, data) => api.patch(`/admin/events/${eventId}/prizes/${prizeId}`, { prize: data }),
   deletePrize: (eventId, prizeId) => api.delete(`/admin/events/${eventId}/prizes/${prizeId}`),
   reorderPrizes: (eventId, updates) => api.patch(`/admin/events/${eventId}/prizes/reorder`, { prizes: updates }),
+  createBonusPrize: (eventId, data) => api.post(`/admin/events/${eventId}/prizes/bonus`, { prize: data }),
 
   // Global Participants
   getAllParticipants: (params = {}) => api.get('/admin/participants', { params }),
@@ -105,9 +119,21 @@ export const adminApi = {
   executeDraw: (prizeId, count) => api.post(`/admin/prizes/${prizeId}/draw`, { count }),
   simulateDraw: (prizeId, count) => api.post(`/admin/prizes/${prizeId}/draw`, { count, simulate: true }),
 
+  // Eligibility (Phase 2)
+  getEligibleParticipants: (eventId, prizeId) => api.get(`/admin/events/${eventId}/prizes/${prizeId}/eligible_participants`),
+  previewEligibleParticipants: (eventId, rules) => api.post(`/admin/events/${eventId}/preview_eligible_participants`, { eligibility_rules: rules }),
+
   // Winners
   getWinners: (eventId, options = {}) => api.get('/admin/winners', { params: { event_id: eventId, ...options } }),
   updateWinner: (winnerId, data) => api.patch(`/admin/winners/${winnerId}`, data),
+  batchDistributeWinners: (options) => api.post('/admin/winners/batch_distribute', options),
+
+  // Notification Templates
+  getNotificationTemplates: (params = {}) => api.get('/admin/notification_templates', { params }),
+  getNotificationTemplate: (id) => api.get(`/admin/notification_templates/${id}`),
+  createNotificationTemplate: (data) => api.post('/admin/notification_templates', { notification_template: data }),
+  updateNotificationTemplate: (id, data) => api.patch(`/admin/notification_templates/${id}`, { notification_template: data }),
+  deleteNotificationTemplate: (id) => api.delete(`/admin/notification_templates/${id}`),
 };
 
 export const publicApi = {
