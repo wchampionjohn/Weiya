@@ -30,6 +30,7 @@ import {
   PublicOff as PublicOffIcon,
 } from '@mui/icons-material';
 import { adminApi } from '../../lib/api';
+import NotificationTemplateEditor from './NotificationTemplateEditor';
 
 const FIELD_OPTIONS = [
   { value: 'name', label: '姓名', description: '參與者姓名', required: true },
@@ -56,6 +57,8 @@ export default function EventForm({ event, onSave, onCancel }) {
       department: false,
     },
     public_access_enabled: true,
+    sms_template: '',
+    email_template: '',
   });
   const [publicSlug, setPublicSlug] = useState(null);
   const [slugLoading, setSlugLoading] = useState(false);
@@ -129,6 +132,8 @@ export default function EventForm({ event, onSave, onCancel }) {
           department: false,
         },
         public_access_enabled: event.public_access_enabled !== false,
+        sms_template: event.sms_template || '',
+        email_template: event.email_template || '',
       });
       setPublicSlug(event.public_slug || null);
     }
@@ -463,6 +468,14 @@ export default function EventForm({ event, onSave, onCancel }) {
                 </Alert>
               )}
             </Box>
+
+            {/* 通知模板 (Phase 2) */}
+            <Divider />
+            <NotificationTemplateEditor
+              smsTemplate={formData.sms_template}
+              emailTemplate={formData.email_template}
+              onChange={(type, value) => setFormData(prev => ({ ...prev, [type]: value }))}
+            />
           </>
         )}
       </Box>

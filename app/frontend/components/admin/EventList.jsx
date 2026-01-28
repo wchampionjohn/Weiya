@@ -21,13 +21,20 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
   Event as EventIcon,
-  ChevronRight as ChevronRightIcon,
+  ContentCopy as CopyIcon,
+  MoreVert as MoreIcon,
+  OpenInNew as OpenIcon,
 } from '@mui/icons-material';
+import CopyEventDialog from './CopyEventDialog';
 import { adminApi } from '../../lib/api';
 
 export default function EventList({ onSelect, onNew }) {
@@ -35,6 +42,9 @@ export default function EventList({ onSelect, onNew }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, event: null });
+  const [copyDialog, setCopyDialog] = useState({ open: false, event: null });
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [menuEvent, setMenuEvent] = useState(null);
 
   useEffect(() => {
     loadEvents();
@@ -52,11 +62,6 @@ export default function EventList({ onSelect, onNew }) {
     }
   };
 
-  const handleDeleteClick = (e, event) => {
-    e.stopPropagation();
-    setDeleteDialog({ open: true, event });
-  };
-
   const handleDeleteConfirm = async () => {
     const eventId = deleteDialog.event?.id;
     setDeleteDialog({ open: false, event: null });
@@ -67,6 +72,40 @@ export default function EventList({ onSelect, onNew }) {
     } catch (err) {
       setError(err.response?.data?.error || '刪除活動失敗');
     }
+  };
+
+  const handleCopyClick = (event) => {
+    setCopyDialog({ open: true, event });
+    handleCloseMenu();
+  };
+
+  const handleCopySuccess = (newEvent) => {
+    setEvents([newEvent, ...events]);
+  };
+
+  const handleOpenMenu = (e, event) => {
+    e.stopPropagation();
+    setMenuAnchor(e.currentTarget);
+    setMenuEvent(event);
+  };
+
+  const handleCloseMenu = () => {
+    setMenuAnchor(null);
+    setMenuEvent(null);
+  };
+
+  const handleMenuSelect = () => {
+    if (menuEvent) {
+      onSelect(menuEvent);
+    }
+    handleCloseMenu();
+  };
+
+  const handleMenuDelete = () => {
+    if (menuEvent) {
+      setDeleteDialog({ open: true, event: menuEvent });
+    }
+    handleCloseMenu();
   };
 
   const getStatusColor = (status) => {
@@ -88,13 +127,7 @@ export default function EventList({ onSelect, onNew }) {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString('zh-TW', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return new Date(dateString).toISOString().slice(0, 16).replace('T', ' ');
   };
 
   if (loading) {
@@ -157,7 +190,7 @@ export default function EventList({ onSelect, onNew }) {
                 <TableCell>狀態</TableCell>
                 <TableCell>獎項數</TableCell>
                 <TableCell>參與者</TableCell>
-                <TableCell align="right">操作</TableCell>
+                <TableCell align="center">操作</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -195,18 +228,12 @@ export default function EventList({ onSelect, onNew }) {
                       {event.participants_count || 0}
                     </Typography>
                   </TableCell>
-                  <TableCell align="right">
-                    {event.status === 'draft' && (
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={(e) => handleDeleteClick(e, event)}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    )}
-                    <IconButton size="small" color="primary">
-                      <ChevronRightIcon />
+                  <TableCell align="center">
+                    <IconButton
+                      size="small"
+                      onClick={(e) => handleOpenMenu(e, event)}
+                    >
+                      <MoreIcon fontSize="small" />
                     </IconButton>
                   </TableCell>
                 </TableRow>
@@ -235,6 +262,43 @@ export default function EventList({ onSelect, onNew }) {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <CopyEventDialog
+        open={copyDialog.open}
+        event={copyDialog.event}
+        onClose={() => setCopyDialog({ open: false, event: null })}
+        onSuccess={handleCopySuccess}
+      />
+
+      {/* Action Menu */}
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={handleCloseMenu}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <MenuItem onClick={handleMenuSelect}>
+          <ListItemIcon>
+            <OpenIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>開啟</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => handleCopyClick(menuEvent)}>
+          <ListItemIcon>
+            <CopyIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>複製</ListItemText>
+        </MenuItem>
+        {menuEvent?.status === 'draft' && (
+          <MenuItem onClick={handleMenuDelete}>
+            <ListItemIcon>
+              <DeleteIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText sx={{ color: 'error.main' }}>刪除</ListItemText>
+          </MenuItem>
+        )}
+      </Menu>
     </Box>
   );
 }
