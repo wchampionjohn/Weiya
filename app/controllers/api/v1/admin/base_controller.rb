@@ -4,7 +4,7 @@ module Api
       class BaseController < Api::V1::BaseController
         before_action :authenticate_admin!
 
-        SESSION_TIMEOUT = 2.hours
+        SESSION_TIMEOUT = 3.days
 
         private
 

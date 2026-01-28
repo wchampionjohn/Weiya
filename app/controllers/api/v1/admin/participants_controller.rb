@@ -7,7 +7,7 @@ module Api
 
         # GET /api/v1/admin/participants - Global participant list
         def index
-          @participants = Participant.search(params[:q]).order(:name)
+          @participants = Participant.includes(:department).search(params[:q]).order(:name)
           @participants = @participants.page(params[:page]).per(params[:per_page] || 20) if params[:page]
         end
 
@@ -47,7 +47,18 @@ module Api
 
         # GET /api/v1/admin/events/:event_id/participants - Event participants
         def event_participants
-          @event_participants = @event.event_participants.includes(:participant).order("participants.name")
+          # Get IDs of event_participants who have already won
+          won_ids = Winner.joins(:prize)
+                          .where(prizes: { event_id: @event.id })
+                          .select(:event_participant_id)
+
+          # Sort non-winners first, then by name
+          @event_participants = @event.event_participants
+                                      .joins(:participant)
+                                      .includes(participant: :department)
+                                      .left_joins(:winners)
+                                      .select("DISTINCT ON (event_participants.id) event_participants.*, participants.name AS participant_name, CASE WHEN event_participants.id IN (#{won_ids.to_sql}) THEN 1 ELSE 0 END AS won_order")
+                                      .order("event_participants.id, won_order ASC, participant_name ASC")
         end
 
         # POST /api/v1/admin/events/:event_id/participants/:id/add
@@ -97,11 +108,11 @@ module Api
         end
 
         def set_participant
-          @participant = Participant.find(params[:id])
+          @participant = Participant.includes(:department).find(params[:id])
         end
 
         def participant_params
-          params.require(:participant).permit(:name, :employee_id, :phone, :email)
+          params.require(:participant).permit(:name, :employee_id, :phone, :email, :hire_date, :department)
         end
       end
     end

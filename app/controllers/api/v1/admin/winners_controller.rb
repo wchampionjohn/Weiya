@@ -11,6 +11,7 @@ module Api
 
           @winners = @winners.where(prizes: { event_id: params[:event_id] }) if params[:event_id]
           @winners = @winners.where(distributed: params[:distributed] == "true") if params[:distributed].present?
+          @winners = @winners.where(prize_id: params[:prize_id]) if params[:prize_id].present?
         end
 
         def update
@@ -21,7 +22,49 @@ module Api
           end
         end
 
+        # Phase 2: Batch distribute
+        def batch_distribute
+          winner_ids = params[:winner_ids] || []
+
+          if winner_ids.empty?
+            return render json: { error: '請選擇至少一筆中獎記錄' }, status: :unprocessable_entity
+          end
+
+          options = {
+            distribute: params[:distribute] != false && params[:distribute] != "false",
+            send_sms: params[:send_sms] == true || params[:send_sms] == "true",
+            send_email: params[:send_email] == true || params[:send_email] == "true",
+            sms_template: params[:sms_template],
+            email_template: params[:email_template]
+          }
+
+          service = WinnerBatchDistributeService.new(winner_ids, options)
+          result = service.execute.result
+
+          render json: {
+            distributed_count: result[:distributed_count],
+            skipped_count: result[:skipped_count],
+            notified_count: result[:notified_count],
+            sms_sent_count: result[:sms_sent_count],
+            email_sent_count: result[:email_sent_count],
+            winners: result[:winners].map { |w| winner_json(w) }
+          }
+        end
+
         private
+
+        def winner_json(winner)
+          {
+            id: winner.id,
+            prize_id: winner.prize_id,
+            distributed: winner.distributed?,
+            distributed_at: winner.distributed_at,
+            participant: {
+              id: winner.event_participant.participant.id,
+              name: winner.event_participant.participant.name
+            }
+          }
+        end
 
         def set_winner
           @winner = Winner.find(params[:id])
