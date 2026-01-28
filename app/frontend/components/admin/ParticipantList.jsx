@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -29,6 +29,11 @@ import {
   ListItemSecondaryAction,
   Checkbox,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TableSortLabel,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -36,10 +41,12 @@ import {
   People as PeopleIcon,
   Search as SearchIcon,
   PersonAdd as PersonAddIcon,
+  PersonAddAlt1 as CreatePersonIcon,
 } from '@mui/icons-material';
 import { adminApi } from '../../lib/api';
+import ParticipantImport from './ParticipantImport';
 
-export default function ParticipantList({ event, onUpdate }) {
+export default function ParticipantList({ event, onUpdate, showSnackbar }) {
   const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -49,6 +56,78 @@ export default function ParticipantList({ event, onUpdate }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [adding, setAdding] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newParticipant, setNewParticipant] = useState({
+    name: '', employee_id: '', phone: '', email: '', hire_date: ''
+  });
+
+  // Search, filter, sort state
+  const [listSearch, setListSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortField, setSortField] = useState('name');
+  const [sortDirection, setSortDirection] = useState('asc');
+
+  // Filtered and sorted participants
+  const displayedParticipants = useMemo(() => {
+    let result = [...participants];
+
+    // Search filter
+    if (listSearch) {
+      const query = listSearch.toLowerCase();
+      result = result.filter(p =>
+        p.name?.toLowerCase().includes(query) ||
+        p.employee_id?.toLowerCase().includes(query) ||
+        p.phone?.includes(query) ||
+        p.email?.toLowerCase().includes(query) ||
+        p.department?.toLowerCase().includes(query)
+      );
+    }
+
+    // Status filter
+    if (statusFilter === 'won') {
+      result = result.filter(p => p.has_won);
+    } else if (statusFilter === 'not_won') {
+      result = result.filter(p => !p.has_won);
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+
+      // Handle null values
+      if (aVal == null) aVal = '';
+      if (bVal == null) bVal = '';
+
+      // Handle numeric fields
+      if (sortField === 'seniority_years') {
+        aVal = Number(aVal) || 0;
+        bVal = Number(bVal) || 0;
+      }
+
+      // Compare
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }, [participants, listSearch, statusFilter, sortField, sortDirection]);
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   useEffect(() => {
     loadParticipants();
@@ -122,6 +201,33 @@ export default function ParticipantList({ event, onUpdate }) {
     );
   };
 
+  const handleCreateOpen = () => {
+    setNewParticipant({ name: '', employee_id: '', phone: '', email: '', hire_date: '' });
+    setCreateOpen(true);
+  };
+
+  const handleCreateSubmit = async () => {
+    if (!newParticipant.name.trim()) return;
+
+    setCreating(true);
+    try {
+      // Create the participant globally
+      const createResponse = await adminApi.createParticipant(newParticipant);
+      const createdParticipant = createResponse.data;
+
+      // Add to this event
+      await adminApi.addParticipantToEvent(event.id, createdParticipant.id);
+
+      setCreateOpen(false);
+      loadParticipants();
+      onUpdate?.();
+    } catch (err) {
+      setError(err.response?.data?.errors?.join(', ') || '建立參與者失敗');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const filteredParticipants = allParticipants.filter(p => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -151,15 +257,32 @@ export default function ParticipantList({ event, onUpdate }) {
           <Typography variant="h6" component="h2">
             參與者 ({participants.length})
           </Typography>
-          <Button
-            variant="contained"
-            color="success"
-            startIcon={<PersonAddIcon />}
-            size="small"
-            onClick={openSelector}
-          >
-            加入參與者
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <ParticipantImport
+              eventId={event.id}
+              onSuccess={() => {
+                loadParticipants();
+                onUpdate?.();
+                showSnackbar?.('參與者已匯入！');
+              }}
+            />
+            <Button
+              variant="outlined"
+              startIcon={<PersonAddIcon />}
+              size="small"
+              onClick={openSelector}
+            >
+              加入現有
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<CreatePersonIcon />}
+              size="small"
+              onClick={handleCreateOpen}
+            >
+              建立新參與者
+            </Button>
+          </Box>
         </Box>
 
         {error && (
@@ -176,20 +299,92 @@ export default function ParticipantList({ event, onUpdate }) {
             </Typography>
           </Box>
         ) : (
+          <>
+            {/* Search and Filter Controls */}
+            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+              <TextField
+                size="small"
+                placeholder="搜尋姓名、員工編號、電話、Email、部門..."
+                value={listSearch}
+                onChange={(e) => setListSearch(e.target.value)}
+                sx={{ flexGrow: 1 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon color="action" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>狀態</InputLabel>
+                <Select
+                  value={statusFilter}
+                  label="狀態"
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <MenuItem value="all">全部</MenuItem>
+                  <MenuItem value="won">已中獎</MenuItem>
+                  <MenuItem value="not_won">未中獎</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+
+            {displayedParticipants.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography color="text.secondary">
+                  找不到符合條件的參與者
+                </Typography>
+              </Box>
+            ) : (
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>姓名</TableCell>
-                  <TableCell>員工編號</TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortField === 'name'}
+                      direction={sortField === 'name' ? sortDirection : 'asc'}
+                      onClick={() => handleSort('name')}
+                    >
+                      姓名
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortField === 'employee_id'}
+                      direction={sortField === 'employee_id' ? sortDirection : 'asc'}
+                      onClick={() => handleSort('employee_id')}
+                    >
+                      員工編號
+                    </TableSortLabel>
+                  </TableCell>
                   <TableCell>電話</TableCell>
                   <TableCell>Email</TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortField === 'department'}
+                      direction={sortField === 'department' ? sortDirection : 'asc'}
+                      onClick={() => handleSort('department')}
+                    >
+                      部門
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortField === 'seniority_years'}
+                      direction={sortField === 'seniority_years' ? sortDirection : 'asc'}
+                      onClick={() => handleSort('seniority_years')}
+                    >
+                      年資
+                    </TableSortLabel>
+                  </TableCell>
                   <TableCell>狀態</TableCell>
                   <TableCell align="center" sx={{ width: 80 }}>操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {participants.map((p) => (
+                {displayedParticipants.map((p) => (
                   <TableRow key={p.id} hover>
                     <TableCell>
                       <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
@@ -199,6 +394,10 @@ export default function ParticipantList({ event, onUpdate }) {
                     <TableCell>{p.employee_id || '-'}</TableCell>
                     <TableCell>{p.phone || '-'}</TableCell>
                     <TableCell>{p.email || '-'}</TableCell>
+                    <TableCell>{p.department || '-'}</TableCell>
+                    <TableCell>
+                      {p.seniority_years != null ? `${p.seniority_years} 年` : '-'}
+                    </TableCell>
                     <TableCell>
                       {p.has_won ? (
                         <Chip size="small" label="已中獎" color="success" />
@@ -222,6 +421,15 @@ export default function ParticipantList({ event, onUpdate }) {
               </TableBody>
             </Table>
           </TableContainer>
+            )}
+
+            {/* Results count */}
+            {(listSearch || statusFilter !== 'all') && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                顯示 {displayedParticipants.length} / {participants.length} 位參與者
+              </Typography>
+            )}
+          </>
         )}
       </CardContent>
 
@@ -316,6 +524,65 @@ export default function ParticipantList({ event, onUpdate }) {
             startIcon={<AddIcon />}
           >
             {adding ? '新增中...' : '加入活動'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create New Participant Dialog */}
+      <Dialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>建立新參與者</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              fullWidth
+              label="姓名"
+              value={newParticipant.name}
+              onChange={(e) => setNewParticipant(prev => ({ ...prev, name: e.target.value }))}
+              required
+            />
+            <TextField
+              fullWidth
+              label="員工編號"
+              value={newParticipant.employee_id}
+              onChange={(e) => setNewParticipant(prev => ({ ...prev, employee_id: e.target.value }))}
+            />
+            <TextField
+              fullWidth
+              label="電話"
+              value={newParticipant.phone}
+              onChange={(e) => setNewParticipant(prev => ({ ...prev, phone: e.target.value }))}
+            />
+            <TextField
+              fullWidth
+              label="Email"
+              type="email"
+              value={newParticipant.email}
+              onChange={(e) => setNewParticipant(prev => ({ ...prev, email: e.target.value }))}
+            />
+            <TextField
+              fullWidth
+              label="到職日"
+              type="date"
+              value={newParticipant.hire_date}
+              onChange={(e) => setNewParticipant(prev => ({ ...prev, hire_date: e.target.value }))}
+              InputLabelProps={{ shrink: true }}
+              helperText="用於計算年資"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateOpen(false)}>取消</Button>
+          <Button
+            onClick={handleCreateSubmit}
+            variant="contained"
+            disabled={!newParticipant.name.trim() || creating}
+          >
+            {creating ? '建立中...' : '建立並加入'}
           </Button>
         </DialogActions>
       </Dialog>
