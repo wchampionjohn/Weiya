@@ -6,13 +6,11 @@
 
 <!-- 後續補上截圖 -->
 
-| 後台管理介面 | 開獎直播畫面 |
-|:---:|:---:|
-| ![後台管理介面](screenshots/admin-dashboard.png) | ![開獎直播畫面](screenshots/live-draw.png) |
+| 後台管理介面 | 
+<img width="2506" height="1175" alt="截圖 2026-01-28 晚上8 19 44" src="https://github.com/user-attachments/assets/6e104acb-0254-4ccf-ae5e-b3851e2e8062" />
+| 開獎直播畫面 | 
+  <img width="1553" height="928" alt="image" src="https://github.com/user-attachments/assets/f6ffc14d-38dc-4cab-b8ed-41ee8085dccb" />
 
-| 中獎結果顯示 | 參與者登入 |
-|:---:|:---:|
-| ![中獎結果顯示](screenshots/winner-display.png) | ![參與者登入](screenshots/participant-login.png) |
 
 ## 專案簡介
 
