@@ -1,172 +1,214 @@
-# Weiya
+# 尾牙抽獎系統 (Weiya)
 
-A year-end party lottery application built with Rails, Vite, and React.
+公司尾牙、年會活動的抽獎系統，支援多種抽獎情境與彈性設定。
 
-## Project Description
+## 畫面截圖
 
-This is an interactive lottery system designed for company year-end party events.
+<!-- 後續補上截圖 -->
 
-## Tech Stack
+| 後台管理介面 | 開獎直播畫面 |
+|:---:|:---:|
+| ![後台管理介面](screenshots/admin-dashboard.png) | ![開獎直播畫面](screenshots/live-draw.png) |
 
-### Backend
+| 中獎結果顯示 | 參與者登入 |
+|:---:|:---:|
+| ![中獎結果顯示](screenshots/winner-display.png) | ![參與者登入](screenshots/participant-login.png) |
 
-| Technology | Version | Description |
-|------------|---------|-------------|
-| Ruby | 3.4.1 | Programming Language |
-| Rails | 8.0.2.1 | Web Framework |
-| PostgreSQL | - | Database |
-| Puma | 5.0+ | Web Server |
+## 專案簡介
 
-### Frontend
+這是一個 Side Project，用於解決尾牙抽獎活動中的各種實際需求。
 
-| Technology | Version | Description |
-|------------|---------|-------------|
-| React | 19.x | UI Framework |
-| Vite | 5.x | Build Tool |
-| vite_rails | 3.0.19 | Rails + Vite Integration |
-| Node.js | 18.20.0 | JavaScript Runtime |
+### 主要功能
 
-## Getting Started
+- **多種抽獎邏輯** - 隨機抽獎、指定中獎人、資格條件篩選（年資、部門）
+- **年資條件** - 依入職日期計算年資，可設定「滿 N 年才可參與」
+- **部門條件** - 針對特定部門設定專屬獎項
+- **即時開獎** - 透過 WebSocket 同步開獎結果至所有觀眾
+- **通知功能** - 支援通知模板設定，預留簡訊與 Email 通知介面
+- **快速建立** - 從過去活動複製設定、批次匯入參與者
 
-### Prerequisites
+### 適用情境
 
-- Ruby 3.2.0 or higher
-- Node.js 18.0 or higher (20+ recommended)
-- PostgreSQL 12 or higher
-- Bundler 2.0 or higher
+- 公司尾牙抽獎
+- 年會摸彩活動
+- 部門聚餐抽獎
+- 春酒活動
 
-### Installation
+## 功能說明
 
-1. Clone the repository
+### 獎項管理
+
+- 一場活動可設定多個獎項，各自獨立開獎
+- 支援現金獎（自動標記需課稅）與禮品獎
+- 每個獎項可設定多位中獎者
+- 活動進行中可新增加碼獎項
+- 可設定每個獎項的預計開獎時間，前台顯示時程表
+
+### 參與者管理
+
+- 支援 CSV 批次匯入參與者名單
+- 參與者可被加入多個活動，無需重複建立
+- 姓名、員工編號、手機、Email 可依活動需求設定必填項
+- 輸入入職日期，系統自動計算年資
+- 記錄參與者所屬部門，供資格條件篩選
+
+### 抽獎機制
+
+- 隨機抽選中獎者
+- 可預先指定中獎人（外觀與隨機抽選無異）
+- 可設定年資門檻或部門限制
+- 活動層級設定是否允許重複中獎，個別獎項可覆蓋
+- 已開獎的獎項無法再次開獎
+
+### 隱私保護
+
+中獎者資訊顯示支援遮罩設定：
+
+| 欄位 | 遮罩效果 |
+|------|----------|
+| 姓名 | 陳○銘 |
+| 電話 | 0912-XXX-456 |
+| Email | ab***@company.com |
+
+每個欄位可獨立設定是否啟用遮罩。
+
+### 前台展示
+
+- 開獎結果透過 WebSocket 即時推送
+- 可設定進入密碼，限制觀看人員
+- 參與者可登入查看個人中獎狀態
+- 顯示各獎項預計開獎時間
+
+### 發放管理
+
+- 記錄每個獎項的發放狀態
+- 支援批次標記已發放
+- 記錄發放時間與操作人員
+
+## 技術架構
+
+### 後端
+
+| 技術 | 版本 | 說明 |
+|------|------|------|
+| Ruby | 3.4.1 | 程式語言 |
+| Rails | 8.0.2.1 | Web 框架 |
+| PostgreSQL | - | 資料庫（正式環境） |
+| SQLite | 3 | 資料庫（開發環境） |
+| ActionCable | - | WebSocket 即時通訊 |
+| Puma | 5.0+ | Web 伺服器 |
+
+### 前端
+
+| 技術 | 版本 | 說明 |
+|------|------|------|
+| React | 19.x | UI 框架 |
+| TypeScript | - | 型別系統 |
+| Vite | 5.x | 建置工具 |
+| Tailwind CSS | 3.x | CSS 框架 |
+| vite_rails | 3.0.19 | Rails + Vite 整合 |
+
+## 快速開始
+
+### 環境需求
+
+- Ruby 3.4.0+
+- Node.js 18.0+
+- PostgreSQL 12+（正式環境）
+- Bundler 2.0+
+
+### 安裝步驟
 
 ```bash
+# 1. 複製專案
 git clone <repository-url>
 cd Weiya
-```
 
-2. Install dependencies
-
-```bash
-# Install Ruby gems
+# 2. 安裝依賴
 bundle install
-
-# Install Node.js packages
 npm install
-```
 
-3. Setup database
-
-```bash
-# Create database
+# 3. 設定資料庫
 rails db:create
-
-# Run migrations
 rails db:migrate
-```
+rails db:seed  # 建立預設管理者帳號
 
-4. Start development server
-
-```bash
-# Start both Rails and Vite
+# 4. 啟動開發伺服器
 ./bin/dev
 ```
 
-5. Open browser and visit [http://localhost:3000](http://localhost:3000)
+開啟瀏覽器訪問 http://localhost:3000
 
-## Development
+### 預設帳號
 
-### Project Structure
+| 角色 | 帳號 | 密碼 |
+|------|------|------|
+| 管理者 | admin | password |
+
+## 專案結構
 
 ```
 Weiya/
 ├── app/
-│   ├── frontend/              # Frontend code (Vite)
-│   │   ├── entrypoints/       # Vite entry points
-│   │   │   └── application.jsx
-│   │   └── components/        # React components
-│   │       └── App.jsx
-│   ├── controllers/           # Rails controllers
-│   ├── models/                # Rails models
-│   └── views/                 # Rails views
+│   ├── frontend/              # 前端程式碼 (Vite)
+│   │   ├── entrypoints/       # Vite 進入點
+│   │   └── components/        # React 元件
+│   │       ├── admin/         # 後台管理元件
+│   │       ├── event/         # 前台活動元件
+│   │       └── public/        # 公開頁面元件
+│   ├── controllers/           # Rails 控制器
+│   │   └── api/v1/            # API 端點
+│   ├── models/                # Rails 模型
+│   ├── services/              # 服務物件
+│   ├── channels/              # ActionCable 頻道
+│   └── views/                 # Rails 視圖 (Jbuilder)
 ├── config/
-│   ├── vite.json              # Vite configuration
-│   ├── database.yml           # Database configuration
-│   └── routes.rb              # Routes configuration
+│   ├── routes.rb              # 路由設定
+│   └── vite.json              # Vite 設定
 ├── db/
-│   ├── migrate/               # Database migrations
-│   └── schema.rb              # Database schema
-├── vite.config.ts             # Vite config file
-└── Procfile.dev               # Development process configuration
+│   ├── migrate/               # 資料庫遷移
+│   └── schema.rb              # 資料庫結構
+└── specs/                     # 功能規格文件
 ```
 
-### Common Commands
+## 常用指令
 
 ```bash
-# Start development server (Rails + Vite)
+# 啟動開發伺服器（Rails + Vite）
 ./bin/dev
 
-# Start Rails only
-rails server
+# 執行測試
+bundle exec rspec
 
-# Start Vite only
-bin/vite dev
-
-# Rails console
+# Rails 控制台
 rails console
 
-# Run tests
-rails test
-
-# View routes
+# 查看路由
 rails routes
 
-# Database operations
-rails db:migrate        # Run migrations
-rails db:rollback       # Rollback last migration
-rails db:reset          # Reset database
+# 資料庫操作
+rails db:migrate        # 執行遷移
+rails db:rollback       # 回滾遷移
+rails db:reset          # 重設資料庫
 ```
 
-### Frontend Development
+## 路由結構
 
-React components are located in `app/frontend/components/`. When you save changes, the browser will automatically update thanks to Vite HMR (Hot Module Replacement).
+### 後台 (Admin)
 
-### Backend Development
-
-```bash
-# Generate a new model
-rails generate model ModelName field:type
-
-# Generate a new controller
-rails generate controller ControllerName action
-
-# Generate a new migration
-rails generate migration MigrationName
+```
+/admin                    → 後台首頁（活動列表）
+/admin/events/:id         → 活動詳情
+/admin/events/:id/prizes  → 獎項管理
+/admin/events/:id/draw    → 開獎控制台
 ```
 
-## Testing
+### 前台 (Public)
 
-```bash
-# Run all tests
-rails test
-
-# Run specific test file
-rails test test/models/model_test.rb
-
-# Run system tests
-rails test:system
+```
+/events/:id               → 活動首頁
+/events/:id/live          → 開獎直播頁
+/events/:id/login         → 參與者登入
+/events/:id/results       → 中獎記錄
 ```
 
-## Deployment
-
-### Production Build
-
-```bash
-# Precompile assets
-rails assets:precompile
-
-# Run migrations
-RAILS_ENV=production rails db:migrate
-
-# Start production server
-RAILS_ENV=production rails server
-```
