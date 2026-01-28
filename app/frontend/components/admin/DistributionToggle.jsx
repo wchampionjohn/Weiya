@@ -12,7 +12,7 @@ export default function DistributionToggle({ distributed, distributedAt, onChang
         </span>
         {distributedAt && (
           <div className="text-xs text-gray-500">
-            {new Date(distributedAt).toLocaleString('zh-TW')}
+            {new Date(distributedAt).toISOString().slice(0, 16).replace('T', ' ')}
           </div>
         )}
       </div>
