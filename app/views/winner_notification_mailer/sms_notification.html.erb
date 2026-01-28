@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 400px; margin: 0 auto; padding: 20px; }
+    .sms-header { background: #25D366; color: white; padding: 15px 20px; border-radius: 8px 8px 0 0; }
+    .sms-header h2 { margin: 0; font-size: 16px; }
+    .sms-content { background: #ECE5DD; padding: 20px; border-radius: 0 0 8px 8px; }
+    .sms-bubble { background: white; border-radius: 8px; padding: 15px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+    .phone-number { font-size: 14px; opacity: 0.9; }
+    .meta { margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="sms-header">
+    <h2>SMS 簡訊通知（預覽）</h2>
+    <div class="phone-number">收件人：<%= @phone %></div>
+  </div>
+
+  <div class="sms-content">
+    <div class="sms-bubble">
+      <%= simple_format(@message) %>
+    </div>
+
+    <div class="meta">
+      <p><strong>活動：</strong><%= @event.name %></p>
+      <p><strong>得獎者：</strong><%= @participant.name %></p>
+      <p><strong>獎項：</strong><%= @prize.name %></p>
+    </div>
+  </div>
+</body>
+</html>

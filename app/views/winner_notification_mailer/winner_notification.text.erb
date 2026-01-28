@@ -1,0 +1,12 @@
+<%= @event.name %>
+====================
+
+親愛的 <%= @participant.name %>，您好：
+
+恭喜您獲得 <%= @prize.name %>！
+價值 NT$ <%= number_with_delimiter(@prize.value) %>
+
+<%= @body %>
+
+---
+此為系統自動發送的通知
