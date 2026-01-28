@@ -42,6 +42,11 @@ class DrawService
   end
 
   def draw_winners
+    # Phase 2: Handle designated participants
+    if @prize.has_designated_participants?
+      return draw_designated_winners
+    end
+
     eligible_event_participants = find_eligible_event_participants
     return Result.new(success: false, winners: [], error: "No eligible participants") if eligible_event_participants.empty?
 
@@ -58,6 +63,49 @@ class DrawService
         winners << winner
       end
 
+      if @prize.remaining_quantity.zero?
+        @prize.update!(
+          drawn: true,
+          drawn_at: Time.current,
+          drawn_by: @admin&.id
+        )
+      end
+    end
+
+    broadcast_draw_result(winners)
+
+    Result.new(success: true, winners: winners, error: nil, simulated: false)
+  rescue ActiveRecord::RecordInvalid => e
+    Result.new(success: false, winners: [], error: e.message)
+  end
+
+  def draw_designated_winners
+    designated_participants = @prize.designated_participants
+    event_participants = @prize.event.event_participants.where(participant: designated_participants)
+
+    if event_participants.empty?
+      return Result.new(
+        success: false,
+        winners: [],
+        error: "指定中獎人不在活動參與者名單中"
+      )
+    end
+
+    # Check how many to draw (limited by @count and remaining_quantity)
+    draw_count = [@count, @prize.remaining_quantity, event_participants.size].min
+
+    winners = []
+    ActiveRecord::Base.transaction do
+      event_participants.limit(draw_count).each do |event_participant|
+        winner = @prize.winners.create!(
+          event_participant: event_participant,
+          drawn_at: Time.current,
+          is_designated: true
+        )
+        winners << winner
+      end
+
+      # Mark prize as fully drawn if no remaining quantity
       if @prize.remaining_quantity.zero?
         @prize.update!(
           drawn: true,

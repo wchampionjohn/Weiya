@@ -68,10 +68,50 @@ class ParticipantImportService
 
   def extract_attributes(row)
     attrs = {}
-    field_mapping.each_with_index do |(field, _), index|
-      attrs[field] = row[index]&.strip
+    field_mapping.each do |field, index|
+      value = row[index]&.strip
+      attrs[field] = parse_field_value(field, value)
     end
     attrs
+  end
+
+  def parse_field_value(field, value)
+    return nil if value.blank?
+
+    case field
+    when :hire_date
+      parse_date(value)
+    else
+      value
+    end
+  end
+
+  def parse_date(value)
+    return nil if value.blank?
+
+    # Try common date formats
+    formats = [
+      "%Y-%m-%d",      # 2020-01-15
+      "%Y/%m/%d",      # 2020/01/15
+      "%d/%m/%Y",      # 15/01/2020
+      "%m/%d/%Y",      # 01/15/2020
+      "%Y%m%d"         # 20200115
+    ]
+
+    formats.each do |format|
+      begin
+        return Date.strptime(value, format)
+      rescue ArgumentError
+        next
+      end
+    end
+
+    # Last resort: try Date.parse
+    begin
+      Date.parse(value)
+    rescue ArgumentError
+      nil
+    end
   end
 
   def find_existing_participant(attrs)
@@ -86,7 +126,9 @@ class ParticipantImportService
       name: 0,
       employee_id: 1,
       phone: 2,
-      email: 3
+      email: 3,
+      hire_date: 4,
+      department: 5
     }
   end
 end
