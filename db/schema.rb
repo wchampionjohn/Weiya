@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_01_140430) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_06_133130) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -20,6 +20,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_01_140430) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_admins_on_email", unique: true
+  end
+
+  create_table "departments", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "code", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_departments_on_code", unique: true
+    t.index ["name"], name: "index_departments_on_name", unique: true
   end
 
   create_table "event_participants", force: :cascade do |t|
@@ -46,8 +55,25 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_01_140430) do
     t.json "privacy_settings", default: {}, null: false
     t.boolean "public_access_enabled", default: true, null: false
     t.string "public_slug"
+    t.text "sms_template"
+    t.text "email_template"
+    t.bigint "copied_from_event_id"
+    t.index ["copied_from_event_id"], name: "index_events_on_copied_from_event_id"
     t.index ["public_slug"], name: "index_events_on_public_slug", unique: true, where: "(public_slug IS NOT NULL)"
     t.index ["status"], name: "index_events_on_status"
+  end
+
+  create_table "notification_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "notification_type", null: false
+    t.string "method", null: false
+    t.text "content", null: false
+    t.boolean "is_default", default: false
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_default"], name: "index_notification_templates_on_is_default"
+    t.index ["notification_type", "method"], name: "index_notification_templates_on_notification_type_and_method"
   end
 
   create_table "participants", force: :cascade do |t|
@@ -57,15 +83,29 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_01_140430) do
     t.string "email"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.date "hire_date"
+    t.string "department"
+    t.bigint "department_id"
+    t.index ["department"], name: "index_participants_on_department"
+    t.index ["department_id"], name: "index_participants_on_department_id"
     t.index ["email"], name: "index_participants_on_email", unique: true, where: "(email IS NOT NULL)"
     t.index ["employee_id"], name: "index_participants_on_employee_id", unique: true, where: "(employee_id IS NOT NULL)"
     t.index ["phone"], name: "index_participants_on_phone", unique: true, where: "(phone IS NOT NULL)"
   end
 
+  create_table "prize_types", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "code", null: false
+    t.boolean "is_default", default: false
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_prize_types_on_code", unique: true
+  end
+
   create_table "prizes", force: :cascade do |t|
     t.bigint "event_id", null: false
     t.string "name", null: false
-    t.integer "prize_type", null: false
     t.decimal "value", precision: 10, scale: 2, null: false
     t.integer "quantity", default: 1, null: false
     t.boolean "taxable", default: false, null: false
@@ -79,9 +119,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_01_140430) do
     t.integer "position", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.json "eligibility_rules"
+    t.boolean "is_bonus", default: false, null: false
+    t.json "designated_participant_ids", default: []
+    t.bigint "prize_type_id"
     t.index ["event_id", "drawn"], name: "index_prizes_on_event_id_and_drawn"
     t.index ["event_id", "position"], name: "index_prizes_on_event_id_and_position"
     t.index ["event_id"], name: "index_prizes_on_event_id"
+    t.index ["is_bonus"], name: "index_prizes_on_is_bonus"
+    t.index ["prize_type_id"], name: "index_prizes_on_prize_type_id"
   end
 
   create_table "winners", force: :cascade do |t|
@@ -94,6 +140,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_01_140430) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "event_participant_id", null: false
+    t.boolean "is_designated", default: false, null: false
     t.index ["event_participant_id"], name: "index_winners_on_event_participant_id"
     t.index ["prize_id", "event_participant_id"], name: "index_winners_on_prize_id_and_event_participant_id", unique: true
     t.index ["prize_id"], name: "index_winners_on_prize_id"
@@ -101,6 +148,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_01_140430) do
 
   add_foreign_key "event_participants", "events"
   add_foreign_key "event_participants", "participants"
+  add_foreign_key "participants", "departments"
   add_foreign_key "prizes", "events"
   add_foreign_key "winners", "event_participants"
   add_foreign_key "winners", "prizes"
