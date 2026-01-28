@@ -47,3 +47,12 @@ app/
 - 不要寫過度解釋的註解
 - 只在必要時註解
 - 解釋「為什麼」而非「做什麼」
+
+## Active Technologies
+- Ruby 3.4.1 / Rails 8.0.2.1 (Backend), TypeScript / React 19.x (Frontend) + Rails (API mode), React 19, Vite 5, Tailwind CSS 3, ActionCable (WebSocket) (001-lottery-event)
+- SQLite 3 (001-lottery-event)
+- PostgreSQL (production), SQLite (development/test) (001-lottery-event)
+- SQLite 3 (development/production) (001-lottery-event)
+
+## Recent Changes
+- 001-lottery-event: Added Ruby 3.4.1 / Rails 8.0.2.1 (Backend), TypeScript / React 19.x (Frontend) + Rails (API mode), React 19, Vite 5, Tailwind CSS 3, ActionCable (WebSocket)

@@ -1,0 +1,629 @@
+openapi: 3.0.3
+info:
+  title: 抽獎活動系統 - Admin API
+  version: 1.0.0
+  description: 後台管理 API
+
+servers:
+  - url: /api/v1/admin
+    description: Admin API
+
+components:
+  securitySchemes:
+    SessionAuth:
+      type: apiKey
+      in: cookie
+      name: _weiya_session
+
+  schemas:
+    Event:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        event_date:
+          type: string
+          format: date-time
+        password:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, active, completed]
+        allow_repeat_win:
+          type: boolean
+        required_fields:
+          type: array
+          items:
+            type: string
+            enum: [name, employee_id, phone, email]
+        prizes_count:
+          type: integer
+        participants_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    EventInput:
+      type: object
+      required:
+        - name
+        - event_date
+        - required_fields
+      properties:
+        name:
+          type: string
+        event_date:
+          type: string
+          format: date-time
+        password:
+          type: string
+        allow_repeat_win:
+          type: boolean
+          default: false
+        required_fields:
+          type: array
+          items:
+            type: string
+            enum: [name, employee_id, phone, email]
+          minItems: 1
+
+    Prize:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        prize_type:
+          type: string
+          enum: [cash, gift]
+        value:
+          type: number
+        quantity:
+          type: integer
+        taxable:
+          type: boolean
+        display_fields:
+          type: array
+          items:
+            type: string
+        privacy_settings:
+          type: object
+          additionalProperties:
+            type: boolean
+        allow_repeat_win_override:
+          type: boolean
+          nullable: true
+        scheduled_at:
+          type: string
+          format: date-time
+          nullable: true
+        drawn:
+          type: boolean
+        drawn_at:
+          type: string
+          format: date-time
+          nullable: true
+        position:
+          type: integer
+        winners_count:
+          type: integer
+
+    PrizeInput:
+      type: object
+      required:
+        - name
+        - prize_type
+        - value
+      properties:
+        name:
+          type: string
+        prize_type:
+          type: string
+          enum: [cash, gift]
+        value:
+          type: number
+        quantity:
+          type: integer
+          default: 1
+        display_fields:
+          type: array
+          items:
+            type: string
+          default: [name]
+        privacy_settings:
+          type: object
+          additionalProperties:
+            type: boolean
+        allow_repeat_win_override:
+          type: boolean
+        scheduled_at:
+          type: string
+          format: date-time
+        position:
+          type: integer
+
+    Participant:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        employee_id:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        won:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    ParticipantInput:
+      type: object
+      properties:
+        name:
+          type: string
+        employee_id:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+
+    Winner:
+      type: object
+      properties:
+        id:
+          type: integer
+        prize:
+          $ref: '#/components/schemas/Prize'
+        participant:
+          $ref: '#/components/schemas/Participant'
+        participant_display:
+          type: object
+          description: 依保密設定遮罩後的顯示資料
+          properties:
+            name:
+              type: string
+            phone:
+              type: string
+            email:
+              type: string
+        drawn_at:
+          type: string
+          format: date-time
+        distributed:
+          type: boolean
+        distributed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    DrawResult:
+      type: object
+      properties:
+        prize:
+          $ref: '#/components/schemas/Prize'
+        winners:
+          type: array
+          items:
+            $ref: '#/components/schemas/Winner'
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: object
+
+security:
+  - SessionAuth: []
+
+paths:
+  /sessions:
+    post:
+      tags: [Auth]
+      summary: 管理者登入
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 登入成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  admin:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      email:
+                        type: string
+        '401':
+          description: 登入失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Auth]
+      summary: 管理者登出
+      responses:
+        '200':
+          description: 登出成功
+
+  /events:
+    get:
+      tags: [Events]
+      summary: 取得活動列表
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, active, completed]
+      responses:
+        '200':
+          description: 活動列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+
+    post:
+      tags: [Events]
+      summary: 建立活動
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventInput'
+      responses:
+        '201':
+          description: 活動已建立
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '422':
+          description: 驗證失敗
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /events/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+
+    get:
+      tags: [Events]
+      summary: 取得活動詳情
+      responses:
+        '200':
+          description: 活動詳情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '404':
+          description: 活動不存在
+
+    patch:
+      tags: [Events]
+      summary: 更新活動
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventInput'
+      responses:
+        '200':
+          description: 活動已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '422':
+          description: 驗證失敗
+
+    delete:
+      tags: [Events]
+      summary: 刪除活動
+      responses:
+        '204':
+          description: 活動已刪除
+        '422':
+          description: 活動無法刪除（已發布）
+
+  /events/{id}/publish:
+    post:
+      tags: [Events]
+      summary: 發布活動
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 活動已發布
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '422':
+          description: 無法發布（缺少獎項或參與者）
+
+  /events/{event_id}/prizes:
+    parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: integer
+
+    get:
+      tags: [Prizes]
+      summary: 取得獎項列表
+      responses:
+        '200':
+          description: 獎項列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Prize'
+
+    post:
+      tags: [Prizes]
+      summary: 新增獎項
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrizeInput'
+      responses:
+        '201':
+          description: 獎項已建立
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prize'
+
+  /events/{event_id}/prizes/{id}:
+    parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+
+    patch:
+      tags: [Prizes]
+      summary: 更新獎項
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrizeInput'
+      responses:
+        '200':
+          description: 獎項已更新
+        '422':
+          description: 無法更新（已開獎）
+
+    delete:
+      tags: [Prizes]
+      summary: 刪除獎項
+      responses:
+        '204':
+          description: 獎項已刪除
+        '422':
+          description: 無法刪除（已開獎）
+
+  /events/{event_id}/prizes/{id}/draw:
+    post:
+      tags: [Draws]
+      summary: 執行開獎
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 開獎結果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DrawResult'
+        '422':
+          description: 無法開獎（已開獎/無可抽選參與者）
+
+  /events/{event_id}/participants:
+    parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: integer
+
+    get:
+      tags: [Participants]
+      summary: 取得參與者列表
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: 參與者列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  participants:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Participant'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+
+    post:
+      tags: [Participants]
+      summary: 新增參與者
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParticipantInput'
+      responses:
+        '201':
+          description: 參與者已建立
+
+  /events/{event_id}/participants/import:
+    post:
+      tags: [Participants]
+      summary: 匯入參與者 (CSV)
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 匯入結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported:
+                    type: integer
+                  skipped:
+                    type: integer
+                  errors:
+                    type: array
+                    items:
+                      type: string
+
+  /events/{event_id}/winners:
+    get:
+      tags: [Winners]
+      summary: 取得中獎記錄列表
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: distributed
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: 中獎記錄列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Winner'
+
+  /winners/{id}:
+    patch:
+      tags: [Winners]
+      summary: 更新中獎記錄（發放狀態）
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                distributed:
+                  type: boolean
+                notification_requested:
+                  type: boolean
+      responses:
+        '200':
+          description: 中獎記錄已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Winner'

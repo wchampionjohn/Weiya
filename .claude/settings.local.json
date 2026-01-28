@@ -10,7 +10,8 @@
       "Bash(mkdir:*)",
       "Bash(npm install:*)",
       "Bash(rails generate:*)",
-      "Bash(rails db:create:*)"
+      "Bash(rails db:create:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

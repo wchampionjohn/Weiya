@@ -1,0 +1,11 @@
+json.id event_participant.participant_id
+json.participant_id event_participant.participant_id
+json.name event_participant.name
+json.employee_id event_participant.employee_id
+json.phone event_participant.phone
+json.email event_participant.email
+json.hire_date event_participant.hire_date
+json.department event_participant.participant.department&.name
+json.seniority_years event_participant.seniority_years
+json.has_won event_participant.has_won?
+json.created_at event_participant.created_at
